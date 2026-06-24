@@ -49,6 +49,26 @@ async def lifespan(app: FastAPI):
     # Startup: Seed database and boot background scheduler
     init_db()
     start_scheduler()
+    
+    # Auto register webhook if RENDER_EXTERNAL_URL is available
+    import os
+    external_url = os.getenv("RENDER_EXTERNAL_URL")
+    if external_url:
+        db = SessionLocal()
+        try:
+            bot_token, _ = get_telegram_credentials(db)
+            if bot_token:
+                webhook_url = f"{external_url.rstrip('/')}/api/telegram/webhook"
+                register_url = f"https://api.telegram.org/bot{bot_token}/setWebhook?url={webhook_url}"
+                # Register webhook with Telegram
+                with httpx.Client(timeout=10.0) as client:
+                    r = client.post(register_url)
+                    log_event(db, "INFO", "Lifespan", f"Auto-registered Telegram Webhook to: {webhook_url}. Response: {r.text}")
+        except Exception as e:
+            print(f"Failed to auto-register Telegram Webhook: {e}")
+        finally:
+            db.close()
+            
     yield
     # Shutdown: Turn off background scheduler
     stop_scheduler()
@@ -333,6 +353,92 @@ def run_worker_now(background_tasks: BackgroundTasks, db: Session = Depends(get_
     log_event(db, "INFO", "API", "Manual background execution cycle requested by user.")
     background_tasks.add_task(execution_cycle)
     return {"message": "Background worker process started."}
+
+# --- Telegram Webhook API ---
+
+@app.post("/api/telegram/webhook")
+async def telegram_webhook(update: dict, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Receives commands from Telegram and replies."""
+    message = update.get("message", {})
+    text = message.get("text", "").strip()
+    chat = message.get("chat", {})
+    chat_id = chat.get("id")
+    
+    if not text or not chat_id:
+        return {"status": "ok"}
+        
+    bot_token, _ = get_telegram_credentials(db)
+    if not bot_token:
+        return {"status": "no token"}
+        
+    # Process commands
+    if text.startswith("/"):
+        command = text.split()[0].lower()
+        
+        reply_text = ""
+        if command in ["/start", "/help"]:
+            reply_text = (
+                "🤖 <b>FinAI Intelligence Bot</b>\n\n"
+                "ยินดีต้อนรับ! คุณสามารถสั่งงานบอทผ่านคำสั่งต่อไปนี้:\n"
+                "• /stats - ดูสรุปสถิติระบบ\n"
+                "• /latest - ดูวิเคราะห์ข่าวเด่นล่าสุด 3 ข่าว\n"
+                "• /run - สั่งดึงและวิเคราะห์ข่าวทันที"
+            )
+        elif command == "/stats":
+            total_news = db.query(NewsItem).count()
+            important_news = db.query(NewsItem).filter(NewsItem.is_important == True).count()
+            noise_news = db.query(NewsItem).filter(NewsItem.is_important == False).count()
+            active_feeds = db.query(FeedConfig).filter(FeedConfig.active == True).count()
+            
+            reply_text = (
+                "📊 <b>สถิติระบบ FinAI</b>\n\n"
+                f"• ข่าวที่ดึงทั้งหมด: <b>{total_news} ข่าว</b>\n"
+                f"• ข่าวสำคัญ (High Impact): <b>{important_news} ข่าว</b>\n"
+                f"• ข่าวทั่วไป (Noise): <b>{noise_news} ข่าว</b>\n"
+                f"• แหล่งข้อมูลที่ทำงานอยู่: <b>{active_feeds} แหล่ง</b>"
+            )
+        elif command == "/latest":
+            items = db.query(NewsItem).filter(NewsItem.is_important == True, NewsItem.ai_analysis != None).order_by(desc(NewsItem.published_at)).limit(3).all()
+            if not items:
+                reply_text = "📭 ไม่พบข่าววิเคราะห์สำคัญในระบบขณะนี้"
+            else:
+                reply_text = "🔥 <b>วิเคราะห์ข่าวสำคัญล่าสุด 3 อันดับ:</b>\n\n"
+                for idx, item in enumerate(items):
+                    analysis = item.ai_analysis
+                    assets = analysis.get("assets", {})
+                    summary = analysis.get("summary", {})
+                    
+                    def get_dir_icon(imp):
+                        return "🟢↑" if imp == "+" else ("🔴↓" if imp == "-" else "⚪→")
+                        
+                    usd = get_dir_icon(assets.get("USD", {}).get("impact"))
+                    gold = get_dir_icon(assets.get("Gold", {}).get("impact"))
+                    
+                    reply_text += f"{idx+1}. <b>{item.title}</b>\n"
+                    reply_text += f"💬 <i>{summary.get('what_happened', '-')}</i>\n"
+                    reply_text += f"📊 USD: {usd} | Gold: {gold}\n"
+                    reply_text += f"🔗 <a href='{item.url}'>อ่านต่อ</a>\n\n"
+        elif command == "/run":
+            # Run background worker cycle asynchronously
+            background_tasks.add_task(execution_cycle)
+            reply_text = "🔄 <b>เริ่มกระบวนการดึงข่าวสารและกรองผ่าน AI ทันที...</b> กรุณารอรับการแจ้งเตือนหากเจอข่าวสำคัญ!"
+            
+        if reply_text:
+            try:
+                url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                payload = {
+                    "chat_id": chat_id,
+                    "text": reply_text,
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": True
+                }
+                # Send reply message to Telegram asynchronously
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    await client.post(url, json=payload)
+            except Exception as e:
+                print(f"Error sending webhook reply: {e}")
+                
+    return {"status": "ok"}
 
 # --- Static File Serving ---
 
