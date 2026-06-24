@@ -9,9 +9,35 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 INSTANCE_DIR = BASE_DIR / "instance"
 INSTANCE_DIR.mkdir(exist_ok=True)
 
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{INSTANCE_DIR}/database.db")
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+import urllib.parse
+
+def parse_and_safe_url(url_str):
+    if not url_str:
+        return url_str
+    # Convert postgres:// to postgresql://
+    if url_str.startswith("postgres://"):
+        url_str = url_str.replace("postgres://", "postgresql://", 1)
+        
+    if not url_str.startswith("postgresql://"):
+        return url_str
+        
+    try:
+        prefix = "postgresql://"
+        rest = url_str[len(prefix):]
+        # Split by the last '@' to separate credentials from host info
+        if "@" in rest:
+            creds, host_part = rest.rsplit("@", 1)
+            if ":" in creds:
+                username, password = creds.split(":", 1)
+                # URL encode password to handle special characters (e.g. '@', ':', '/')
+                safe_password = urllib.parse.quote_plus(password)
+                return f"{prefix}{username}:{safe_password}@{host_part}"
+    except Exception:
+        pass
+    return url_str
+
+DATABASE_URL = parse_and_safe_url(os.getenv("DATABASE_URL", f"sqlite:///{INSTANCE_DIR}/database.db"))
+
 
 
 # Default configuration settings
