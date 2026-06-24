@@ -52,6 +52,7 @@ DEFAULT_SETTINGS = {
     "fetch_interval_minutes": "5",
     "filter_confidence_threshold": "70",  # Minimum confidence (0-100) to auto-post
     "worker_active": "true",
+    "pre_event_alert_active": "true",
 }
 
 # Initial RSS Feeds list (Tier 1 & Tier 2 defaults)

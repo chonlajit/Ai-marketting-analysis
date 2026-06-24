@@ -180,6 +180,11 @@ def send_pre_event_alerts(db: Session):
     module_name = "Worker: Pre-Event Alert"
     
     try:
+        from app.models import Setting
+        alert_active = db.query(Setting).filter(Setting.key == "pre_event_alert_active").first()
+        if alert_active and alert_active.value.lower() != "true":
+            return
+            
         from collections import defaultdict
         from app.models import TelegramSubscriber
         from app.telegram_publisher import get_telegram_credentials

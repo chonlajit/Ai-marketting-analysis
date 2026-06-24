@@ -304,7 +304,8 @@ async function loadSettings() {
         document.getElementById('setting-telegram-bot-token').value = settings.telegram_bot_token || '';
         document.getElementById('setting-telegram-chat-id').value = settings.telegram_chat_id || '';
         document.getElementById('setting-fetch-interval').value = settings.fetch_interval_minutes || 5;
-        document.getElementById('setting-worker-active').checked = settings.worker_active === 'true';
+        document.getElementById('setting-worker-active').checked = String(settings.worker_active).toLowerCase() === 'true';
+        document.getElementById('setting-pre-event-alert-active').checked = String(settings.pre_event_alert_active).toLowerCase() === 'true';
     } catch (error) {
         console.error("Error loading settings:", error);
     }
@@ -713,7 +714,8 @@ async function initSettingsForm() {
             telegram_bot_token: document.getElementById('setting-telegram-bot-token').value,
             telegram_chat_id: document.getElementById('setting-telegram-chat-id').value,
             fetch_interval_minutes: document.getElementById('setting-fetch-interval').value,
-            worker_active: document.getElementById('setting-worker-active').checked
+            worker_active: document.getElementById('setting-worker-active').checked,
+            pre_event_alert_active: document.getElementById('setting-pre-event-alert-active').checked
         };
         
         try {
@@ -750,7 +752,8 @@ async function initSettingsForm() {
                 telegram_bot_token: document.getElementById('setting-telegram-bot-token').value,
                 telegram_chat_id: document.getElementById('setting-telegram-chat-id').value,
                 fetch_interval_minutes: document.getElementById('setting-fetch-interval').value,
-                worker_active: document.getElementById('setting-worker-active').checked
+                worker_active: document.getElementById('setting-worker-active').checked,
+                pre_event_alert_active: document.getElementById('setting-pre-event-alert-active').checked
             };
             
             await fetch('/api/settings', {
