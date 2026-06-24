@@ -9,7 +9,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 INSTANCE_DIR = BASE_DIR / "instance"
 INSTANCE_DIR.mkdir(exist_ok=True)
 
-DATABASE_URL = f"sqlite:///{INSTANCE_DIR}/database.db"
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{INSTANCE_DIR}/database.db")
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 
 # Default configuration settings
 DEFAULT_SETTINGS = {
