@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from app.database import get_db, engine, Base, SessionLocal, log_event
 from app.models import NewsItem, FeedConfig, Setting, LogEntry, TelegramSubscriber
 from app.config import DEFAULT_SETTINGS, DEFAULT_FEEDS
-from app.worker import start_scheduler, stop_scheduler, restart_scheduler, execution_cycle
+from app.worker import start_scheduler, stop_scheduler, restart_scheduler, execution_cycle, run_and_report
 from app.ai_processor import filter_news, analyze_news
 from app.telegram_publisher import send_to_telegram, get_telegram_credentials
 import httpx
@@ -441,9 +441,9 @@ async def telegram_webhook(update: dict, background_tasks: BackgroundTasks, db: 
                     reply_text += f"📊 USD: {usd} | Gold: {gold}\n"
                     reply_text += f"🔗 <a href='{item.url}'>ศึกษาเนื้อหาข่าวฉบับเต็ม</a>\n\n"
         elif command == "/run":
-            # Run background worker cycle asynchronously
-            background_tasks.add_task(execution_cycle)
-            reply_text = "🔄 <b>กระผม Markus Anna กำลังเริ่มกระบวนการตรวจสอบและดึงข่าวสารเพื่อนำมาวิเคราะห์ด้วย AI ให้ท่านทันทีครับ...</b> กรุณารอการแจ้งเตือนจากกระผมเมื่อวิเคราะห์เสร็จสิ้นนะครับ"
+            # Run background worker cycle and send report back to this chat
+            background_tasks.add_task(run_and_report, str(chat_id), bot_token)
+            reply_text = "🔄 <b>กระผม Markus Anna ได้รับคำสั่งแล้วครับผม!</b>\n\nกระผมกำลังเริ่มสแกนและวิเคราะห์ข่าวสารด้วย AI อยู่ขณะนี้ครับ กรุณารอสักครู่ กระผมจะส่งรายงานสรุปผลการสแกนกลับมาให้ท่านทันทีที่เสร็จสิ้นนะครับผม 🎩"
         elif command == "/stop":
             exists = db.query(TelegramSubscriber).filter(TelegramSubscriber.chat_id == str(chat_id)).first()
             if exists:

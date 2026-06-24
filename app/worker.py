@@ -1,4 +1,5 @@
 import time
+import httpx
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.orm import Session
@@ -11,6 +12,102 @@ from app.telegram_publisher import send_to_telegram
 # Global scheduler instance
 scheduler = BackgroundScheduler()
 is_worker_running = False
+
+def send_report_to_chat(bot_token: str, chat_id: str, report_text: str):
+    """Sends a summary report message to a specific Telegram chat."""
+    try:
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": report_text,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True
+        }
+        with httpx.Client(timeout=10.0) as client:
+            client.post(url, json=payload)
+    except Exception as e:
+        print(f"Error sending report to chat: {e}")
+
+def run_and_report(chat_id: str, bot_token: str):
+    """Runs a full news fetch + analysis cycle and sends a Thai summary report to the requester."""
+    db = SessionLocal()
+    module_name = "Worker: Run & Report"
+    report_lines = []
+    high_impact_items = []
+    noise_items = []
+    
+    try:
+        # Check if worker is paused
+        active_setting = db.query(Setting).filter(Setting.key == "worker_active").first()
+        if active_setting and active_setting.value.lower() != "true":
+            send_report_to_chat(bot_token, chat_id,
+                "⏸️ <b>กระผม Markus Anna ขอเรียนแจ้งว่า Worker ของระบบถูกหยุดพักอยู่ขณะนี้ครับผม</b>\n\nกรุณาไปที่หน้าตั้งค่าเว็บและเปิด Worker Active ก่อนนะครับ")
+            return
+
+        log_event(db, "INFO", module_name, f"Starting run_and_report cycle for chat_id={chat_id}")
+        
+        # Step 1: Fetch news
+        fetch_results = fetch_all(db)
+        new_count = fetch_results.get("added_count", 0)
+        
+        # Step 2: Process pending items and collect results
+        pending_items = db.query(NewsItem).filter(NewsItem.is_important == None).order_by(NewsItem.published_at.asc()).all()
+        
+        for item in pending_items:
+            is_important = filter_news(db, item)
+            time.sleep(4.0)
+            
+            if is_important:
+                analyzed = analyze_news(db, item)
+                time.sleep(4.0)
+                if analyzed:
+                    score = item.ai_analysis.get("importance_score", "?") if item.ai_analysis else "?"
+                    high_impact_items.append((item.title, score))
+                    send_to_telegram(db, item)
+            else:
+                noise_items.append(item.title)
+        
+        # Step 3: Build report message
+        total_scanned = len(pending_items)
+        
+        if total_scanned == 0 and new_count == 0:
+            report = (
+                "🎩 <b>รายงานสรุปการสแกนจากกระผม Markus Anna ครับผม</b>\n\n"
+                "📭 ไม่พบข่าวสารใหม่ในรอบนี้เลยครับผม ทุกข่าวได้รับการประมวลผลครบถ้วนแล้ว\n\n"
+                "<i>กระผมจะคอยเฝ้าระวังและรายงานให้ท่านทราบทันทีที่มีข่าวสำคัญเกิดขึ้นครับ</i>"
+            )
+        else:
+            report = f"🎩 <b>รายงานสรุปการสแกนจากกระผม Markus Anna ครับผม</b>\n\n"
+            report += f"📥 ดึงข่าวใหม่เข้าระบบ: <b>{new_count} รายการ</b>\n"
+            report += f"🔍 ประมวลผลผ่าน AI ทั้งหมด: <b>{total_scanned} รายการ</b>\n\n"
+            
+            if high_impact_items:
+                report += f"🚨 <b>ข่าวสำคัญ High Impact ({len(high_impact_items)} รายการ) — ส่งแจ้งเตือนแล้วขอรับ:</b>\n"
+                for title, score in high_impact_items:
+                    report += f"  • {title[:60]}{'...' if len(title) > 60 else ''} <b>(Impact: {score}/10)</b>\n"
+                report += "\n"
+            
+            if noise_items:
+                report += f"📋 <b>ข่าวทั่วไปที่คัดออก Noise ({len(noise_items)} รายการ):</b>\n"
+                for title in noise_items[:5]:  # Show max 5
+                    report += f"  • {title[:55]}{'...' if len(title) > 55 else ''}\n"
+                if len(noise_items) > 5:
+                    report += f"  • <i>...และอีก {len(noise_items) - 5} รายการ</i>\n"
+            
+            if not high_impact_items and total_scanned > 0:
+                report += "✅ <b>ไม่พบข่าวที่มีผลกระทบสูงในรอบนี้ครับผม</b> ตลาดยังเคลื่อนไหวปกติอยู่นะครับ\n"
+            
+            report += "\n<i>กระผมจะคอยเฝ้าระวังและแจ้งเตือนอัตโนมัติทุก 5 นาทีครับผม 🎩</i>"
+        
+        send_report_to_chat(bot_token, chat_id, report)
+        log_event(db, "INFO", module_name, f"Sent run report to chat_id={chat_id}. High impact: {len(high_impact_items)}, Noise: {len(noise_items)}")
+        
+    except Exception as e:
+        log_event(db, "ERROR", module_name, f"Error in run_and_report: {str(e)}")
+        send_report_to_chat(bot_token, chat_id,
+            f"⚠️ <b>กระผม Markus Anna ขอรายงานว่าเกิดข้อผิดพลาดในระหว่างการประมวลผลครับผม</b>\n\n<code>{str(e)[:200]}</code>")
+    finally:
+        db.close()
 
 def process_pending_items(db: Session):
     """Processes news items that are pending filtering, analysis, or Telegram dispatch."""
