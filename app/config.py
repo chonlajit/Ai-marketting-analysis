@@ -14,9 +14,13 @@ import urllib.parse
 def parse_and_safe_url(url_str):
     if not url_str:
         return url_str
+    # Remove Prisma-specific pgbouncer parameter which psycopg2 does not support
+    url_str = url_str.replace("?pgbouncer=true", "").replace("&pgbouncer=true", "")
+    
     # Convert postgres:// to postgresql://
     if url_str.startswith("postgres://"):
         url_str = url_str.replace("postgres://", "postgresql://", 1)
+
         
     if not url_str.startswith("postgresql://"):
         return url_str
