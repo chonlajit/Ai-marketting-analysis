@@ -23,7 +23,7 @@ def format_telegram_message(item: NewsItem) -> str:
     """Formats news and AI analysis into a beautiful HTML Telegram message."""
     analysis = item.ai_analysis
     if not analysis:
-        return f"🚨 <b>NEWS REPORT:</b>\n{item.title}\n\n{item.raw_content}\n\n<a href='{item.url}'>Read full article</a>"
+        return f"🎩 🚨 <b>รายงานข่าวสารจากกระผม Markus Anna ครับผม:</b>\n\n📰 <b>{item.title}</b>\n\n{item.raw_content}\n\n🔗 <a href='{item.url}'>อ่านข่าวต้นฉบับ (Full Article)</a>"
         
     importance = analysis.get("importance_score", 5)
     confidence = analysis.get("confidence_score", 50)
@@ -33,11 +33,11 @@ def format_telegram_message(item: NewsItem) -> str:
     
     # Header logic based on importance score
     if importance >= 8:
-        header = "🚨 <b>HIGH IMPACT NEWS (ด่วนที่สุด)</b>"
+        header = "🎩 🚨 <b>[ด่วนที่สุด] กระผม Markus Anna ขอรายงานข่าวสำคัญยิ่งครับผม</b>"
     elif importance >= 5:
-        header = "⚠️ <b>MODERATE IMPACT NEWS (ข่าวสำคัญ)</b>"
+        header = "🎩 ⚠️ <b>[ข่าวสำคัญ] กระผม Markus Anna ขอรายงานสถานการณ์สำคัญครับผม</b>"
     else:
-        header = "📊 <b>FINANCIAL NEWS (ข่าวทั่วไป)</b>"
+        header = "🎩 📊 <b>กระผม Markus Anna ขอรายงานข่าวสารการเงินทั่วไปครับผม</b>"
         
     # Asset impact direction icons
     def get_dir_icon(impact):

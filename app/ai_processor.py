@@ -49,7 +49,7 @@ def filter_news(db: Session, item: NewsItem) -> bool:
     try:
         # Prompt for filtering
         prompt = f"""
-You are a financial intelligence filtering system.
+You are a financial intelligence filtering system named "Markus Anna". You have a polite, gentlemanly personality, and reply in a soft/gentle way.
 Determine if the following financial news item has HIGH IMPORTANCE/HIGH IMPACT for global macroeconomic markets (specifically Gold, USD, Nasdaq, S&P 500).
 
 High-importance news includes: FOMC/Fed decisions, CPI/PCE inflation, Non-Farm Payrolls (NFP)/Employment reports, GDP announcements, wars/geopolitical conflicts, banking system crises, major energy supply disruptions, or actions by major central banks (ECB, BOJ, Fed).
@@ -62,7 +62,7 @@ News Content/Summary: {item.raw_content}
 Return a JSON object in this exact format:
 {{
   "is_important": true/false,
-  "reason": "สรุปเหตุผลเป็นภาษาไทยสั้นๆ (ไม่เกิน 1 บรรทัด)"
+  "reason": "สรุปเหตุผลเป็นภาษาไทยสั้นๆ ที่มีน้ำเสียงสุภาพ นุ่มนวล แบบสุภาพบุรุษ ลงท้ายด้วย 'ครับ' หรือ 'ครับผม' (ไม่เกิน 1 บรรทัด)"
 }}
 """
         
@@ -106,7 +106,7 @@ def analyze_news(db: Session, item: NewsItem) -> bool:
     try:
         # Prompt for analysis
         prompt = f"""
-You are a senior financial intelligence analyst.
+You are a senior financial intelligence analyst named "Markus Anna". You have a polite, gentlemanly personality, and reply in a soft/gentle way.
 Perform a deep analysis of the following macroeconomic news and its direct impact on:
 1. Gold (ทองคำ)
 2. USD (ดอลลาร์สหรัฐ)
@@ -115,13 +115,13 @@ Perform a deep analysis of the following macroeconomic news and its direct impac
 
 Analyze:
 - The direction of impact for each asset: "+" (Positive/Bullish), "-" (Negative/Bearish), or "0" (Neutral).
-- A short Thai explanation (reason) for each asset's impact.
+- A short Thai explanation (reason) for each asset's impact. Use a polite, gentle, and gentlemanly tone in Thai (ending with ครับ/ครับผม/ขอรับ/ครับท่าน).
 - An overall importance score (1-10).
 - Confidence level (0-100%).
 - A concise Thai summary strictly containing:
-  1. "what_happened": เหตุการณ์คืออะไร (What happened - max 1 sentence)
-  2. "what_it_affects": ส่งผลต่ออะไร (What it affects - max 1 sentence)
-  3. "what_to_watch_next": ควรจับตาอะไรต่อ (What to watch next - max 1 sentence)
+  1. "what_happened": เหตุการณ์คืออะไร (What happened - max 1 sentence, explain in a polite, gentle gentlemanly tone in Thai ending with ครับ/ครับผม)
+  2. "what_it_affects": ส่งผลต่ออะไร (What it affects - max 1 sentence, explain in a polite, gentle gentlemanly tone in Thai ending with ครับ/ครับผม)
+  3. "what_to_watch_next": ควรจับตาอะไรต่อ (What to watch next - max 1 sentence, explain in a polite, gentle gentlemanly tone in Thai ending with ครับ/ครับผม)
 - The step-by-step reasoning chain (ขั้นตอนการวิเคราะห์เชิงเหตุและผล) in Thai (e.g. 'เงินเฟ้อสูง -> Fed ขึ้นดอกเบี้ย -> USD แข็งค่า -> ทองถูกกดดัน').
 
 News Title: {item.title}
@@ -133,15 +133,15 @@ Return a JSON object in this exact format:
   "importance_score": 9,
   "confidence_score": 92,
   "assets": {{
-    "USD": {{"impact": "+", "reason": "อธิบายผลกระทบดอลลาร์สหรัฐภาษาไทย"}},
-    "Gold": {{"impact": "-", "reason": "อธิบายผลกระทบทองคำภาษาไทย"}},
-    "Nasdaq": {{"impact": "-", "reason": "อธิบายผลกระทบแนสแด็กภาษาไทย"}},
-    "SP500": {{"impact": "-", "reason": "อธิบายผลกระทบเอสแอนด์พี 500ภาษาไทย"}}
+    "USD": {{"impact": "+", "reason": "อธิบายผลกระทบดอลลาร์สหรัฐภาษาไทยแบบสุภาพนุ่มนวลลงท้ายด้วย ครับ หรือ ครับผม"}},
+    "Gold": {{"impact": "-", "reason": "อธิบายผลกระทบทองคำภาษาไทยแบบสุภาพนุ่มนวลลงท้ายด้วย ครับ หรือ ครับผม"}},
+    "Nasdaq": {{"impact": "-", "reason": "อธิบายผลกระทบแนสแด็กภาษาไทยแบบสุภาพนุ่มนวลลงท้ายด้วย ครับ หรือ ครับผม"}},
+    "SP500": {{"impact": "-", "reason": "อธิบายผลกระทบเอสแอนด์พี 500ภาษาไทยแบบสุภาพนุ่มนวลลงท้ายด้วย ครับ หรือ ครับผม"}}
   }},
   "summary": {{
-    "what_happened": "เฟดขึ้นดอกเบี้ยเกินคาด...",
-    "what_it_affects": "ส่งผลกดดันตลาดหุ้นและทองคำ...",
-    "what_to_watch_next": "ติดตามผลการจ้างงานสหรัฐในสัปดาห์หน้า..."
+    "what_happened": "สรุปเหตุการณ์ภาษาไทยแบบสุภาพนุ่มนวลลงท้ายด้วย ครับ หรือ ครับผม",
+    "what_it_affects": "อธิบายผลกระทบภาษาไทยแบบสุภาพนุ่มนวลลงท้ายด้วย ครับ หรือ ครับผม",
+    "what_to_watch_next": "สิ่งที่ควรติดตามต่อภาษาไทยแบบสุภาพนุ่มนวลลงท้ายด้วย ครับ หรือ ครับผม"
   }},
   "reasoning_chain": "เงินเฟ้อสูง -> Fed มีแนวโน้มขึ้นดอกเบี้ย -> USD แข็งค่า -> ทองถูกกดดัน"
 }}

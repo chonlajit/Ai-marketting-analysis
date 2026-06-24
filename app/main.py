@@ -387,24 +387,24 @@ async def telegram_webhook(update: dict, background_tasks: BackgroundTasks, db: 
                     db.commit()
                     log_event(db, "INFO", "Telegram Webhook", f"New user subscribed: {username} ({chat_id})")
                     reply_text = (
-                        "🤖 <b>ยินดีต้อนรับสู่ FinAI Intelligence Bot!</b>\n\n"
-                        "คุณได้ลงทะเบียนเข้าสู่ระบบ **รับข่าวสารเศรษฐกิจสำคัญอัตโนมัติ** เรียบร้อยแล้ว! "
-                        "บอทจะส่งสรุปข่าวสารการเงินโลก และวิเคราะห์ทิศทางราคาสินทรัพย์เข้าแชตนี้ทันทีเมื่อมีข่าวด่วนสำคัญสูง (High Impact) 🚀\n\n"
-                        "พิมพ์ /help เพื่อดูคำสั่งอื่นๆ ทั้งหมด หรือพิมพ์ /stop เพื่อยกเลิกการรับข่าวสารได้ตลอดเวลาครับ"
+                        "🎩 <b>ยินดีต้อนรับสู่ระบบรายงานข่าวสารของกระผม Markus Anna ครับผม</b>\n\n"
+                        "กระผมได้จดบันทึกและลงทะเบียนช่องแชตของท่านเข้าสู่ระบบ <b>รับรายงานข่าวสารเศรษฐกิจสำคัญอัตโนมัติ</b> เรียบร้อยแล้วขอรับ! "
+                        "กระผมจะส่งสรุปข่าวสารการเงินโลก และวิเคราะห์ทิศทางผลกระทบต่อราคาสินทรัพย์อย่างรวดเร็วและนุ่มนวลที่สุดให้ท่านทราบเมื่อมีข่าวที่มีระดับความสำคัญสูง (High Impact) นะครับ 🚀\n\n"
+                        "ท่านสามารถพิมพ์คำสั่ง /help เพื่อเรียกดูคำสั่งอื่นๆ ทั้งหมด หรือพิมพ์ /stop เพื่อยกเลิกการรับรายงานจากกระผมได้ทุกเมื่อตามที่ท่านต้องการครับผม"
                     )
                 else:
                     reply_text = (
-                        "🤖 <b>คุณอยู่ในระบบรับข่าวสารอัตโนมัติเรียบร้อยแล้ว!</b>\n\n"
-                        "พิมพ์ /help เพื่อดูคำสั่งทั้งหมด หรือพิมพ์ /stop เพื่อยกเลิกการรับข่าวสารได้ครับ"
+                        "🎩 <b>ท่านอยู่ในระบบรับข่าวสารอัตโนมัติของกระผม Markus Anna เรียบร้อยแล้วครับผม</b>\n\n"
+                        "หากประสงค์จะศึกษาคำสั่งเพิ่มเติม กรุณาพิมพ์ /help หรือพิมพ์ /stop เพื่อขอยกเลิกการรับรายงานจากกระผมได้ครับผม"
                     )
             else:
                 reply_text = (
-                    "🤖 <b>FinAI Intelligence Bot</b>\n\n"
-                    "ยินดีต้อนรับ! คุณสามารถสั่งงานบอทผ่านคำสั่งต่อไปนี้:\n"
-                    "• /stats - ดูสรุปสถิติระบบ\n"
-                    "• /latest - ดูวิเคราะห์ข่าวเด่นล่าสุด 3 ข่าว\n"
-                    "• /run - สั่งดึงและวิเคราะห์ข่าวทันที\n"
-                    "• /stop - ยกเลิกการรับข่าวสารอัตโนมัติ"
+                    "🎩 <b>กระผม Markus Anna ยินดีที่จะช่วยเหลือและบริการท่านครับ</b>\n\n"
+                    "ท่านสามารถสั่งการกระผมผ่านคำสั่งดังต่อไปนี้ได้เลยครับ:\n"
+                    "• /stats - เรียกดูสถิติโดยรวมของระบบ FinAI\n"
+                    "• /latest - เรียกดูสรุปวิเคราะห์ข่าวเด่นล่าสุด 3 รายการ\n"
+                    "• /run - สั่งการให้กระผมค้นหาและวิเคราะห์ข่าวสารใหม่ในทันที\n"
+                    "• /stop - ขอยกเลิกการรับรายงานข่าวสารอัตโนมัติชั่วคราว"
                 )
         elif command == "/stats":
             total_news = db.query(NewsItem).count()
@@ -413,18 +413,18 @@ async def telegram_webhook(update: dict, background_tasks: BackgroundTasks, db: 
             active_feeds = db.query(FeedConfig).filter(FeedConfig.active == True).count()
             
             reply_text = (
-                "📊 <b>สถิติระบบ FinAI</b>\n\n"
-                f"• ข่าวที่ดึงทั้งหมด: <b>{total_news} ข่าว</b>\n"
-                f"• ข่าวสำคัญ (High Impact): <b>{important_news} ข่าว</b>\n"
-                f"• ข่าวทั่วไป (Noise): <b>{noise_news} ข่าว</b>\n"
-                f"• แหล่งข้อมูลที่ทำงานอยู่: <b>{active_feeds} แหล่ง</b>"
+                "📊 <b>รายงานสถิติของระบบโดยกระผม Markus Anna ครับผม</b>\n\n"
+                f"• ข่าวที่จัดเก็บและกรองทั้งหมด: <b>{total_news} รายการ</b>\n"
+                f"• ข่าวสำคัญวิเคราะห์เสร็จสิ้น (High Impact): <b>{important_news} รายการ</b>\n"
+                f"• ข่าวสารทั่วไปที่เป็นเสียงรบกวน (Noise): <b>{noise_news} รายการ</b>\n"
+                f"• แหล่งข้อมูลข่าวสารที่ทำงานอยู่: <b>{active_feeds} ช่องทางขอรับ</b>"
             )
         elif command == "/latest":
             items = db.query(NewsItem).filter(NewsItem.is_important == True, NewsItem.ai_analysis != None).order_by(desc(NewsItem.published_at)).limit(3).all()
             if not items:
-                reply_text = "📭 ไม่พบข่าววิเคราะห์สำคัญในระบบขณะนี้"
+                reply_text = "📭 กระผมยังไม่พบข้อมูลการวิเคราะห์ข่าวสำคัญระดับสูงในระบบ ณ ขณะนี้เลยครับผม"
             else:
-                reply_text = "🔥 <b>วิเคราะห์ข่าวสำคัญล่าสุด 3 อันดับ:</b>\n\n"
+                reply_text = "🔥 <b>รายงานวิเคราะห์ข่าวสำคัญล่าสุด 3 อันดับ โดย Markus Anna ครับผม:</b>\n\n"
                 for idx, item in enumerate(items):
                     analysis = item.ai_analysis
                     assets = analysis.get("assets", {})
@@ -439,20 +439,20 @@ async def telegram_webhook(update: dict, background_tasks: BackgroundTasks, db: 
                     reply_text += f"{idx+1}. <b>{item.title}</b>\n"
                     reply_text += f"💬 <i>{summary.get('what_happened', '-')}</i>\n"
                     reply_text += f"📊 USD: {usd} | Gold: {gold}\n"
-                    reply_text += f"🔗 <a href='{item.url}'>อ่านต่อ</a>\n\n"
+                    reply_text += f"🔗 <a href='{item.url}'>ศึกษาเนื้อหาข่าวฉบับเต็ม</a>\n\n"
         elif command == "/run":
             # Run background worker cycle asynchronously
             background_tasks.add_task(execution_cycle)
-            reply_text = "🔄 <b>เริ่มกระบวนการดึงข่าวสารและกรองผ่าน AI ทันที...</b> กรุณารอรับการแจ้งเตือนหากเจอข่าวสำคัญ!"
+            reply_text = "🔄 <b>กระผม Markus Anna กำลังเริ่มกระบวนการตรวจสอบและดึงข่าวสารเพื่อนำมาวิเคราะห์ด้วย AI ให้ท่านทันทีครับ...</b> กรุณารอการแจ้งเตือนจากกระผมเมื่อวิเคราะห์เสร็จสิ้นนะครับ"
         elif command == "/stop":
             exists = db.query(TelegramSubscriber).filter(TelegramSubscriber.chat_id == str(chat_id)).first()
             if exists:
                 db.delete(exists)
                 db.commit()
                 log_event(db, "INFO", "Telegram Webhook", f"User unsubscribed: {exists.username} ({chat_id})")
-                reply_text = "🔕 <b>ยกเลิกการรับข่าวสารอัตโนมัติแล้ว</b>\n\nระบบได้ลบห้องแชตนี้ออกจากรายชื่อส่งแจ้งเตือนด่วนแล้ว คุณสามารถกลับมาเปิดรับข่าวใหม่ได้ทุกเมื่อเพียงพิมพ์ /start ครับ"
+                reply_text = "🔕 <b>กระผมได้ดำเนินการยกเลิกการส่งรายงานข่าวสารอัตโนมัติให้ท่านเรียบร้อยแล้วครับผม</b>\n\nระบบได้ลบข้อมูลห้องแชตนี้ออกจากรายชื่อผู้รับข้อมูลเรียบร้อยแล้ว หากท่านมีความประสงค์จะเริ่มต้นรับรายงานจากกระผมใหม่อีกครั้งในภายหลัง สามารถพิมพ์คำสั่ง /start ได้ทุกเมื่อเลยนะครับกระผม"
             else:
-                reply_text = "🤖 คุณไม่ได้เป็นผู้รับข่าวสารอัตโนมัติในระบบอยู่แล้วครับ พิมพ์ /start เพื่อเริ่มรับข่าวสารใหม่"
+                reply_text = "🤖 ท่านยังไม่ได้อยู่ในรายชื่อผู้รับรายงานข่าวสารอัตโนมัติของกระผมเลยนะครับ หากสนใจเริ่มต้นรับข้อมูล โปรดพิมพ์คำสั่ง /start ได้เลยขอรับ"
             
         if reply_text:
             try:
