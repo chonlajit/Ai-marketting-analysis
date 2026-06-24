@@ -24,10 +24,12 @@ def process_pending_items(db: Session):
     for item in pending_items:
         # Phase 1: Filter
         is_important = filter_news(db, item)
+        time.sleep(4.0)  # Sleep to avoid hitting Gemini API rate limits
         
         # Phase 2: If important, analyze
         if is_important:
             analyzed = analyze_news(db, item)
+            time.sleep(4.0)  # Sleep to avoid hitting Gemini API rate limits
             if analyzed:
                 # Phase 3: Dispatch to Telegram
                 send_to_telegram(db, item)
@@ -37,6 +39,7 @@ def process_pending_items(db: Session):
     for item in un_analyzed:
         log_event(db, "INFO", module_name, f"Retrying analysis for: {item.title[:40]}...")
         analyzed = analyze_news(db, item)
+        time.sleep(4.0)  # Sleep to avoid hitting Gemini API rate limits
         if analyzed:
             send_to_telegram(db, item)
             
