@@ -24,6 +24,10 @@ class NewsItem(Base):
     # Telegram dispatch status
     telegram_sent = Column(Boolean, default=False)
     telegram_sent_at = Column(DateTime, nullable=True)
+    
+    # Pre-event alert tracking: tracks which countdown alerts were sent
+    # Example: {"60": true, "30": true, "15": false, "5": false}
+    pre_alert_sent = Column(JSON, nullable=True, default=None)
 
 class FeedConfig(Base):
     __tablename__ = "feed_configs"

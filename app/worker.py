@@ -1,6 +1,6 @@
 import time
 import httpx
-from datetime import datetime
+from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, log_event
@@ -170,6 +170,106 @@ def process_pending_items(db: Session):
         log_event(db, "INFO", module_name, f"Retrying Telegram dispatch for: {item.title[:40]}...")
         send_to_telegram(db, item)
 
+def send_pre_event_alerts(db: Session):
+    """
+    Checks for upcoming High Impact Forex Factory calendar events
+    and sends countdown alerts to all Telegram subscribers.
+    Alert windows: 60, 30, 15, and 5 minutes before the event.
+    Zero Gemini API calls - uses only DB data and Telegram API.
+    """
+    module_name = "Worker: Pre-Event Alert"
+    
+    try:
+        from app.models import TelegramSubscriber
+        from app.telegram_publisher import get_telegram_credentials
+        
+        bot_token, _ = get_telegram_credentials(db)
+        if not bot_token:
+            return
+        
+        subscribers = db.query(TelegramSubscriber).all()
+        if not subscribers:
+            return
+        
+        now_utc = datetime.utcnow()
+        
+        # Look for High Impact calendar events in the next 65 minutes
+        upcoming = db.query(NewsItem).filter(
+            NewsItem.is_calendar == True,
+            NewsItem.is_important == True,
+            NewsItem.published_at >= now_utc,
+            NewsItem.published_at <= now_utc + timedelta(minutes=65)
+        ).all()
+        
+        # Alert windows: (label, min_minutes, max_minutes)
+        alert_windows = [
+            ("60", 55, 65),
+            ("30", 25, 35),
+            ("15", 10, 20),
+            ("5",  3,  7),
+        ]
+        
+        for item in upcoming:
+            minutes_until = (item.published_at - now_utc).total_seconds() / 60
+            sent_map = item.pre_alert_sent or {}
+            
+            for label, min_m, max_m in alert_windows:
+                if min_m <= minutes_until <= max_m and not sent_map.get(label):
+                    # Build alert message
+                    details = item.calendar_details or {}
+                    country = details.get("country", "")
+                    forecast = details.get("forecast", "N/A")
+                    previous = details.get("previous", "N/A")
+                    
+                    # Convert event time to Thailand timezone (UTC+7)
+                    event_th = item.published_at + timedelta(hours=7)
+                    event_time_str = event_th.strftime("%d/%m/%Y %H:%M")
+                    
+                    flag = {
+                        "USD": "🇺🇸", "EUR": "🇪🇺", "GBP": "🇬🇧",
+                        "JPY": "🇯🇵", "CNY": "🇨🇳", "AUD": "🇦🇺",
+                        "CAD": "🇨🇦", "CHF": "🇨🇭", "NZD": "🇳🇿"
+                    }.get(country, "🌍")
+                    
+                    mins_display = int(minutes_until)
+                    
+                    alert_msg = (
+                        f"⏰ <b>อีก {mins_display} นาที! ข่าวสำคัญกำลังจะออกแล้วครับผม</b>\n\n"
+                        f"{flag} <b>[{country}] {item.title.replace(f'[{country}] ', '')}</b>\n"
+                        f"📅 เวลาประกาศ (ไทย): <b>{event_time_str} น.</b>\n"
+                        f"📊 คาดการณ์: <b>{forecast}</b>\n"
+                        f"📈 ครั้งก่อน: <b>{previous}</b>\n"
+                        f"⚡ ระดับผลกระทบ: <b>🔴 HIGH</b>\n\n"
+                        f"🥇 ทองคำและตลาดการเงินอาจเกิดความผันผวนสูง โปรดเตรียมพร้อมรับมือนะครับผม\n"
+                        f"<i>กระผม Markus Anna จะรายงานผลการวิเคราะห์ทันทีที่ข่าวออกครับผม 🎩</i>"
+                    )
+                    
+                    # Send to all subscribers
+                    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                    for sub in subscribers:
+                        try:
+                            with httpx.Client(timeout=10.0) as client:
+                                client.post(url, json={
+                                    "chat_id": sub.chat_id,
+                                    "text": alert_msg,
+                                    "parse_mode": "HTML"
+                                })
+                        except Exception as e:
+                            log_event(db, "ERROR", module_name, f"Failed to send pre-alert to {sub.chat_id}: {e}")
+                    
+                    # Mark this window as sent
+                    new_sent_map = dict(sent_map)
+                    new_sent_map[label] = True
+                    item.pre_alert_sent = new_sent_map
+                    db.commit()
+                    
+                    log_event(db, "INFO", module_name,
+                        f"Sent {label}-min pre-alert for '{item.title[:40]}...' to {len(subscribers)} subscribers.")
+                    break  # Only one window at a time
+                    
+    except Exception as e:
+        log_event(db, "ERROR", module_name, f"Error in send_pre_event_alerts: {str(e)}")
+
 def execution_cycle():
     """Main job executed by the scheduler."""
     db = SessionLocal()
@@ -189,6 +289,9 @@ def execution_cycle():
         
         # Step 2: Process pipeline
         process_pending_items(db)
+        
+        # Step 3: Pre-event countdown alerts (no Gemini API calls)
+        send_pre_event_alerts(db)
         
         log_event(db, "INFO", module_name, "Execution cycle completed successfully.")
     except Exception as e:

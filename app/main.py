@@ -21,6 +21,31 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
+        # --- DB Migration: Add new columns if they don't exist ---
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            # Add pre_alert_sent column for pre-event alerts (JSON)
+            try:
+                conn.execute(text("ALTER TABLE news_items ADD COLUMN pre_alert_sent JSON"))
+                conn.commit()
+                print("Migration: Added pre_alert_sent column to news_items.")
+            except Exception:
+                pass  # Column already exists, no action needed
+            # Add importance_percent column from filter phase
+            try:
+                conn.execute(text("ALTER TABLE news_items ADD COLUMN importance_percent INTEGER"))
+                conn.commit()
+                print("Migration: Added importance_percent column to news_items.")
+            except Exception:
+                pass
+            # Add gold_impact_level column from filter phase
+            try:
+                conn.execute(text("ALTER TABLE news_items ADD COLUMN gold_impact_level VARCHAR(50)"))
+                conn.commit()
+                print("Migration: Added gold_impact_level column to news_items.")
+            except Exception:
+                pass
+
         # Seed settings
         for key, value in DEFAULT_SETTINGS.items():
             exists = db.query(Setting).filter(Setting.key == key).first()
