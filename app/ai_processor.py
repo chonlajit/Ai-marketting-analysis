@@ -62,8 +62,12 @@ News Content/Summary: {item.raw_content}
 Return a JSON object in this exact format:
 {{
   "is_important": true/false,
+  "importance_percent": 75,
+  "gold_impact": "สูง/ปานกลาง/ต่ำ",
   "reason": "สรุปเหตุผลเป็นภาษาไทยสั้นๆ ที่มีน้ำเสียงสุภาพ นุ่มนวล แบบสุภาพบุรุษ ลงท้ายด้วย 'ครับ' หรือ 'ครับผม' (ไม่เกิน 1 บรรทัด)"
 }}
+
+หมายเหตุ: importance_percent คือระดับความสำคัญของข่าวนี้ต่อตลาดการเงินโลก 0-100% (100% = สำคัญมากที่สุด) และ gold_impact คือระดับผลกระทบต่อราคาทองคำ
 """
         
         # Configure model (we use gemini-2.5-flash for speed and structured JSON)
@@ -77,10 +81,13 @@ Return a JSON object in this exact format:
         
         item.is_important = result.get("is_important", False)
         item.filter_reason = result.get("reason", "No reason provided.")
+        # Store extra filter metadata in a dedicated field if available, else embed in filter_reason
+        item.importance_percent = result.get("importance_percent", None)
+        item.gold_impact_level = result.get("gold_impact", None)
         db.commit()
         
         status_str = "IMPORTANT" if item.is_important else "NOISE"
-        log_event(db, "INFO", module_name, f"Processed '{item.title[:40]}...'. Result: {status_str}. Reason: {item.filter_reason}")
+        log_event(db, "INFO", module_name, f"Processed '{item.title[:40]}...'. Result: {status_str}. Importance: {result.get('importance_percent', '?')}%. Gold: {result.get('gold_impact', '?')}. Reason: {item.filter_reason}")
         return item.is_important
         
     except Exception as e:

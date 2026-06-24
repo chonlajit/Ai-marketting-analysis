@@ -57,45 +57,69 @@ def run_and_report(chat_id: str, bot_token: str):
             is_important = filter_news(db, item)
             time.sleep(4.0)
             
+            # Collect filter metadata (new fields from updated prompt)
+            pct = getattr(item, "importance_percent", None)
+            gold_lvl = getattr(item, "gold_impact_level", None)
+            pub_date = item.published_at.strftime("%d/%m %H:%M") if item.published_at else "?"
+            
             if is_important:
                 analyzed = analyze_news(db, item)
                 time.sleep(4.0)
                 if analyzed:
                     score = item.ai_analysis.get("importance_score", "?") if item.ai_analysis else "?"
-                    high_impact_items.append((item.title, score))
+                    conf  = item.ai_analysis.get("confidence_score", "?") if item.ai_analysis else "?"
+                    gold_dir = ""
+                    if item.ai_analysis and "assets" in item.ai_analysis:
+                        g = item.ai_analysis["assets"].get("Gold", {})
+                        gold_dir = g.get("impact", "")
+                    high_impact_items.append((item.title, score, conf, pct, gold_lvl, gold_dir, pub_date))
                     send_to_telegram(db, item)
             else:
-                noise_items.append(item.title)
+                noise_items.append((item.title, pct, gold_lvl, pub_date))
         
         # Step 3: Build report message
         total_scanned = len(pending_items)
+        now_str = datetime.now().strftime("%d/%m/%Y %H:%M")
         
         if total_scanned == 0 and new_count == 0:
             report = (
-                "🎩 <b>รายงานสรุปการสแกนจากกระผม Markus Anna ครับผม</b>\n\n"
+                f"🎩 <b>รายงานสรุปการสแกนจากกระผม Markus Anna ครับผม</b>\n"
+                f"🕐 เวลาสแกน: {now_str}\n\n"
                 "📭 ไม่พบข่าวสารใหม่ในรอบนี้เลยครับผม ทุกข่าวได้รับการประมวลผลครบถ้วนแล้ว\n\n"
                 "<i>กระผมจะคอยเฝ้าระวังและรายงานให้ท่านทราบทันทีที่มีข่าวสำคัญเกิดขึ้นครับ</i>"
             )
         else:
-            report = f"🎩 <b>รายงานสรุปการสแกนจากกระผม Markus Anna ครับผม</b>\n\n"
-            report += f"📥 ดึงข่าวใหม่เข้าระบบ: <b>{new_count} รายการ</b>\n"
-            report += f"🔍 ประมวลผลผ่าน AI ทั้งหมด: <b>{total_scanned} รายการ</b>\n\n"
+            report = f"🎩 <b>รายงานสรุปการสแกนจากกระผม Markus Anna ครับผม</b>\n"
+            report += f"🕐 เวลาสแกน: {now_str}\n"
+            report += f"📥 ข่าวใหม่เข้าระบบ: <b>{new_count} รายการ</b> | ประมวลผล AI: <b>{total_scanned} รายการ</b>\n\n"
             
             if high_impact_items:
                 report += f"🚨 <b>ข่าวสำคัญ High Impact ({len(high_impact_items)} รายการ) — ส่งแจ้งเตือนแล้วขอรับ:</b>\n"
-                for title, score in high_impact_items:
-                    report += f"  • {title[:60]}{'...' if len(title) > 60 else ''} <b>(Impact: {score}/10)</b>\n"
+                for title, score, conf, pct, gold_lvl, gold_dir, pub_date in high_impact_items:
+                    gold_arrow = {"+" : "📈", "-": "📉", "0": "➡️"}.get(gold_dir, "❓")
+                    pct_str = f"{pct}%" if pct is not None else "?"
+                    gold_str = f"{gold_arrow} {gold_lvl}" if gold_lvl else gold_arrow
+                    report += (
+                        f"  🔴 [{pub_date}] {title[:55]}{'...' if len(title) > 55 else ''}\n"
+                        f"       📊 ความสำคัญ: <b>{pct_str}</b> | ผลทอง: <b>{gold_str}</b> | Score: <b>{score}/10</b>\n"
+                    )
                 report += "\n"
             
             if noise_items:
                 report += f"📋 <b>ข่าวทั่วไปที่คัดออก Noise ({len(noise_items)} รายการ):</b>\n"
-                for title in noise_items[:5]:  # Show max 5
-                    report += f"  • {title[:55]}{'...' if len(title) > 55 else ''}\n"
-                if len(noise_items) > 5:
-                    report += f"  • <i>...และอีก {len(noise_items) - 5} รายการ</i>\n"
+                show_noise = noise_items[:8]
+                for title, pct, gold_lvl, pub_date in show_noise:
+                    pct_str = f"{pct}%" if pct is not None else "?"
+                    gold_str = gold_lvl if gold_lvl else "?"
+                    report += (
+                        f"  ⚫ [{pub_date}] {title[:50]}{'...' if len(title) > 50 else ''}\n"
+                        f"       📊 ความสำคัญ: {pct_str} | ผลทอง: {gold_str}\n"
+                    )
+                if len(noise_items) > 8:
+                    report += f"  <i>...และอีก {len(noise_items) - 8} รายการ</i>\n"
             
             if not high_impact_items and total_scanned > 0:
-                report += "✅ <b>ไม่พบข่าวที่มีผลกระทบสูงในรอบนี้ครับผม</b> ตลาดยังเคลื่อนไหวปกติอยู่นะครับ\n"
+                report += "\n✅ <b>ไม่พบข่าวที่มีผลกระทบสูงในรอบนี้ครับผม</b> ตลาดยังเคลื่อนไหวปกติอยู่นะครับ\n"
             
             report += "\n<i>กระผมจะคอยเฝ้าระวังและแจ้งเตือนอัตโนมัติทุก 5 นาทีครับผม 🎩</i>"
         
