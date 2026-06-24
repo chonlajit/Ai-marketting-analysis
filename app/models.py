@@ -49,3 +49,12 @@ class LogEntry(Base):
     level = Column(String(20), default="INFO")
     module = Column(String(50), nullable=True)
     message = Column(Text, nullable=False)
+
+class TelegramSubscriber(Base):
+    __tablename__ = "telegram_subscribers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_id = Column(String(100), unique=True, index=True, nullable=False)
+    username = Column(String(100), nullable=True)
+    subscribed_at = Column(DateTime, default=datetime.utcnow)
+

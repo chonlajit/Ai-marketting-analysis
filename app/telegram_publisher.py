@@ -86,38 +86,67 @@ def format_telegram_message(item: NewsItem) -> str:
     return msg
 
 def send_to_telegram(db: Session, item: NewsItem) -> bool:
-    """Sends formatted HTML report to the configured Telegram channel/group."""
+    """Sends formatted HTML report to the configured Telegram channel/group and all active subscribers."""
     module_name = "Telegram Publisher"
-    bot_token, chat_id = get_telegram_credentials(db)
     
-    if not bot_token or not chat_id:
-        log_event(db, "ERROR", module_name, "Telegram Bot Token or Chat ID is not configured.")
+    # Import TelegramSubscriber here to avoid circular imports
+    from app.models import TelegramSubscriber
+    
+    bot_token, default_chat_id = get_telegram_credentials(db)
+    if not bot_token:
+        log_event(db, "ERROR", module_name, "Telegram Bot Token is not configured.")
         return False
         
+    # Get all active subscribers
     try:
-        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-        text = format_telegram_message(item)
-        
-        payload = {
-            "chat_id": chat_id,
-            "text": text,
-            "parse_mode": "HTML",
-            "disable_web_page_preview": True
-        }
-        
-        with httpx.Client(timeout=10.0) as client:
-            response = client.post(url, json=payload)
-            response.raise_for_status()
-            
-        # Update database status
-        item.telegram_sent = True
-        item.telegram_sent_at = datetime.utcnow()
-        db.commit()
-        
-        log_event(db, "INFO", module_name, f"Successfully dispatched message for '{item.title[:40]}...' to Telegram.")
-        return True
-        
+        subscribers = db.query(TelegramSubscriber).all()
+        subscriber_chat_ids = [sub.chat_id for sub in subscribers]
     except Exception as e:
-        db.rollback()
-        log_event(db, "ERROR", module_name, f"Error sending message to Telegram: {str(e)}")
+        subscriber_chat_ids = []
+        log_event(db, "WARNING", module_name, f"Could not fetch subscribers from DB: {e}")
+        
+    # Build unique set of destinations
+    destinations = set()
+    if default_chat_id:
+        destinations.add(default_chat_id)
+    for cid in subscriber_chat_ids:
+        destinations.add(cid)
+        
+    if not destinations:
+        log_event(db, "WARNING", module_name, "No Telegram destinations (channel or subscribers) available.")
         return False
+        
+    text = format_telegram_message(item)
+    success_count = 0
+    
+    with httpx.Client(timeout=12.0) as client:
+        for chat_id in destinations:
+            try:
+                url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+                payload = {
+                    "chat_id": chat_id,
+                    "text": text,
+                    "parse_mode": "HTML",
+                    "disable_web_page_preview": True
+                }
+                response = client.post(url, json=payload)
+                response.raise_for_status()
+                success_count += 1
+            except Exception as e:
+                log_event(db, "ERROR", module_name, f"Failed to send to destination {chat_id}: {str(e)}")
+                
+    if success_count > 0:
+        try:
+            # Update database status
+            item.telegram_sent = True
+            item.telegram_sent_at = datetime.utcnow()
+            db.commit()
+            log_event(db, "INFO", module_name, f"Successfully dispatched message for '{item.title[:40]}...' to {success_count} destinations.")
+            return True
+        except Exception as e:
+            db.rollback()
+            log_event(db, "ERROR", module_name, f"Error updating send status in DB: {e}")
+            return True
+            
+    return False
+

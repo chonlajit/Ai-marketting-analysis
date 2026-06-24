@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 
 from app.database import get_db, engine, Base, SessionLocal, log_event
-from app.models import NewsItem, FeedConfig, Setting, LogEntry
+from app.models import NewsItem, FeedConfig, Setting, LogEntry, TelegramSubscriber
 from app.config import DEFAULT_SETTINGS, DEFAULT_FEEDS
 from app.worker import start_scheduler, stop_scheduler, restart_scheduler, execution_cycle
 from app.ai_processor import filter_news, analyze_news
@@ -377,13 +377,35 @@ async def telegram_webhook(update: dict, background_tasks: BackgroundTasks, db: 
         
         reply_text = ""
         if command in ["/start", "/help"]:
-            reply_text = (
-                "🤖 <b>FinAI Intelligence Bot</b>\n\n"
-                "ยินดีต้อนรับ! คุณสามารถสั่งงานบอทผ่านคำสั่งต่อไปนี้:\n"
-                "• /stats - ดูสรุปสถิติระบบ\n"
-                "• /latest - ดูวิเคราะห์ข่าวเด่นล่าสุด 3 ข่าว\n"
-                "• /run - สั่งดึงและวิเคราะห์ข่าวทันที"
-            )
+            if command == "/start":
+                # Check if already subscribed
+                exists = db.query(TelegramSubscriber).filter(TelegramSubscriber.chat_id == str(chat_id)).first()
+                if not exists:
+                    username = chat.get("username") or chat.get("first_name") or "User"
+                    new_sub = TelegramSubscriber(chat_id=str(chat_id), username=username)
+                    db.add(new_sub)
+                    db.commit()
+                    log_event(db, "INFO", "Telegram Webhook", f"New user subscribed: {username} ({chat_id})")
+                    reply_text = (
+                        "🤖 <b>ยินดีต้อนรับสู่ FinAI Intelligence Bot!</b>\n\n"
+                        "คุณได้ลงทะเบียนเข้าสู่ระบบ **รับข่าวสารเศรษฐกิจสำคัญอัตโนมัติ** เรียบร้อยแล้ว! "
+                        "บอทจะส่งสรุปข่าวสารการเงินโลก และวิเคราะห์ทิศทางราคาสินทรัพย์เข้าแชตนี้ทันทีเมื่อมีข่าวด่วนสำคัญสูง (High Impact) 🚀\n\n"
+                        "พิมพ์ /help เพื่อดูคำสั่งอื่นๆ ทั้งหมด หรือพิมพ์ /stop เพื่อยกเลิกการรับข่าวสารได้ตลอดเวลาครับ"
+                    )
+                else:
+                    reply_text = (
+                        "🤖 <b>คุณอยู่ในระบบรับข่าวสารอัตโนมัติเรียบร้อยแล้ว!</b>\n\n"
+                        "พิมพ์ /help เพื่อดูคำสั่งทั้งหมด หรือพิมพ์ /stop เพื่อยกเลิกการรับข่าวสารได้ครับ"
+                    )
+            else:
+                reply_text = (
+                    "🤖 <b>FinAI Intelligence Bot</b>\n\n"
+                    "ยินดีต้อนรับ! คุณสามารถสั่งงานบอทผ่านคำสั่งต่อไปนี้:\n"
+                    "• /stats - ดูสรุปสถิติระบบ\n"
+                    "• /latest - ดูวิเคราะห์ข่าวเด่นล่าสุด 3 ข่าว\n"
+                    "• /run - สั่งดึงและวิเคราะห์ข่าวทันที\n"
+                    "• /stop - ยกเลิกการรับข่าวสารอัตโนมัติ"
+                )
         elif command == "/stats":
             total_news = db.query(NewsItem).count()
             important_news = db.query(NewsItem).filter(NewsItem.is_important == True).count()
@@ -422,6 +444,15 @@ async def telegram_webhook(update: dict, background_tasks: BackgroundTasks, db: 
             # Run background worker cycle asynchronously
             background_tasks.add_task(execution_cycle)
             reply_text = "🔄 <b>เริ่มกระบวนการดึงข่าวสารและกรองผ่าน AI ทันที...</b> กรุณารอรับการแจ้งเตือนหากเจอข่าวสำคัญ!"
+        elif command == "/stop":
+            exists = db.query(TelegramSubscriber).filter(TelegramSubscriber.chat_id == str(chat_id)).first()
+            if exists:
+                db.delete(exists)
+                db.commit()
+                log_event(db, "INFO", "Telegram Webhook", f"User unsubscribed: {exists.username} ({chat_id})")
+                reply_text = "🔕 <b>ยกเลิกการรับข่าวสารอัตโนมัติแล้ว</b>\n\nระบบได้ลบห้องแชตนี้ออกจากรายชื่อส่งแจ้งเตือนด่วนแล้ว คุณสามารถกลับมาเปิดรับข่าวใหม่ได้ทุกเมื่อเพียงพิมพ์ /start ครับ"
+            else:
+                reply_text = "🤖 คุณไม่ได้เป็นผู้รับข่าวสารอัตโนมัติในระบบอยู่แล้วครับ พิมพ์ /start เพื่อเริ่มรับข่าวสารใหม่"
             
         if reply_text:
             try:
