@@ -173,13 +173,14 @@ def process_pending_items(db: Session):
 def send_pre_event_alerts(db: Session):
     """
     Checks for upcoming High Impact Forex Factory calendar events
-    and sends countdown alerts to all Telegram subscribers.
-    Alert windows: 60, 30, 15, and 5 minutes before the event.
+    and sends a single consolidated countdown alert 30 minutes before
+    the event time to all Telegram subscribers.
     Zero Gemini API calls - uses only DB data and Telegram API.
     """
     module_name = "Worker: Pre-Event Alert"
     
     try:
+        from collections import defaultdict
         from app.models import TelegramSubscriber
         from app.telegram_publisher import get_telegram_credentials
         
@@ -193,80 +194,99 @@ def send_pre_event_alerts(db: Session):
         
         now_utc = datetime.utcnow()
         
-        # Look for High Impact calendar events in the next 65 minutes
+        # Look for High Impact calendar events in the 30-min window (25 to 35 minutes from now)
+        start_window = now_utc + timedelta(minutes=25)
+        end_window = now_utc + timedelta(minutes=35)
+        
         upcoming = db.query(NewsItem).filter(
             NewsItem.is_calendar == True,
             NewsItem.is_important == True,
-            NewsItem.published_at >= now_utc,
-            NewsItem.published_at <= now_utc + timedelta(minutes=65)
+            NewsItem.published_at >= start_window,
+            NewsItem.published_at <= end_window
         ).all()
         
-        # Alert windows: (label, min_minutes, max_minutes)
-        alert_windows = [
-            ("60", 55, 65),
-            ("30", 25, 35),
-            ("15", 10, 20),
-            ("5",  3,  7),
-        ]
-        
-        for item in upcoming:
-            minutes_until = (item.published_at - now_utc).total_seconds() / 60
-            sent_map = item.pre_alert_sent or {}
+        if not upcoming:
+            return
             
-            for label, min_m, max_m in alert_windows:
-                if min_m <= minutes_until <= max_m and not sent_map.get(label):
-                    # Build alert message
-                    details = item.calendar_details or {}
-                    country = details.get("country", "")
-                    forecast = details.get("forecast", "N/A")
-                    previous = details.get("previous", "N/A")
-                    
-                    # Convert event time to Thailand timezone (UTC+7)
-                    event_th = item.published_at + timedelta(hours=7)
-                    event_time_str = event_th.strftime("%d/%m/%Y %H:%M")
-                    
-                    flag = {
-                        "USD": "🇺🇸", "EUR": "🇪🇺", "GBP": "🇬🇧",
-                        "JPY": "🇯🇵", "CNY": "🇨🇳", "AUD": "🇦🇺",
-                        "CAD": "🇨🇦", "CHF": "🇨🇭", "NZD": "🇳🇿"
-                    }.get(country, "🌍")
-                    
-                    mins_display = int(minutes_until)
-                    
-                    alert_msg = (
-                        f"⏰ <b>อีก {mins_display} นาที! ข่าวสำคัญกำลังจะออกแล้วครับผม</b>\n\n"
-                        f"{flag} <b>[{country}] {item.title.replace(f'[{country}] ', '')}</b>\n"
-                        f"📅 เวลาประกาศ (ไทย): <b>{event_time_str} น.</b>\n"
-                        f"📊 คาดการณ์: <b>{forecast}</b>\n"
-                        f"📈 ครั้งก่อน: <b>{previous}</b>\n"
-                        f"⚡ ระดับผลกระทบ: <b>🔴 HIGH</b>\n\n"
-                        f"🥇 ทองคำและตลาดการเงินอาจเกิดความผันผวนสูง โปรดเตรียมพร้อมรับมือนะครับผม\n"
-                        f"<i>กระผม Markus Anna จะรายงานผลการวิเคราะห์ทันทีที่ข่าวออกครับผม 🎩</i>"
-                    )
-                    
-                    # Send to all subscribers
-                    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-                    for sub in subscribers:
-                        try:
-                            with httpx.Client(timeout=10.0) as client:
-                                client.post(url, json={
-                                    "chat_id": sub.chat_id,
-                                    "text": alert_msg,
-                                    "parse_mode": "HTML"
-                                })
-                        except Exception as e:
-                            log_event(db, "ERROR", module_name, f"Failed to send pre-alert to {sub.chat_id}: {e}")
-                    
-                    # Mark this window as sent
-                    new_sent_map = dict(sent_map)
-                    new_sent_map[label] = True
-                    item.pre_alert_sent = new_sent_map
-                    db.commit()
-                    
-                    log_event(db, "INFO", module_name,
-                        f"Sent {label}-min pre-alert for '{item.title[:40]}...' to {len(subscribers)} subscribers.")
-                    break  # Only one window at a time
-                    
+        # Filter for items that have NOT sent the 30-min alert yet
+        pending_alerts = []
+        for item in upcoming:
+            sent_map = item.pre_alert_sent or {}
+            if not sent_map.get("30"):
+                pending_alerts.append(item)
+                
+        if not pending_alerts:
+            return
+            
+        # Group pending alerts by their exact published_at time
+        grouped_by_time = defaultdict(list)
+        for item in pending_alerts:
+            grouped_by_time[item.published_at].append(item)
+            
+        # Send one message per time group
+        for event_time, items in grouped_by_time.items():
+            event_th = event_time + timedelta(hours=7)
+            event_time_str = event_th.strftime("%d/%m/%Y %H:%M")
+            
+            # Calculate actual minutes remaining dynamically
+            mins_display = int((event_time - now_utc).total_seconds() / 60)
+            if mins_display < 0:
+                mins_display = 30
+                
+            # Build alert message header
+            alert_msg = f"⏰ <b>อีกประมาณ {mins_display} นาที! ข่าวสำคัญกำลังจะออกแล้วครับผม</b>\n\n"
+            
+            # Append each event details
+            for item in items:
+                details = item.calendar_details or {}
+                country = details.get("country", "")
+                forecast = details.get("forecast", "N/A")
+                previous = details.get("previous", "N/A")
+                
+                flag = {
+                    "USD": "🇺🇸", "EUR": "🇪🇺", "GBP": "🇬🇧",
+                    "JPY": "🇯🇵", "CNY": "🇨🇳", "AUD": "🇦🇺",
+                    "CAD": "🇨🇦", "CHF": "🇨🇭", "NZD": "🇳🇿"
+                }.get(country, "🌍")
+                
+                clean_title = item.title.replace(f"[{country}] ", "")
+                
+                alert_msg += (
+                    f"{flag} <b>[{country}] {clean_title}</b>\n"
+                    f"📅 เวลาประกาศ (ไทย): <b>{event_time_str} น.</b>\n"
+                    f"📊 คาดการณ์: <b>{forecast}</b> | ครั้งก่อน: <b>{previous}</b>\n"
+                    f"⚡ ระดับผลกระทบ: <b>🔴 HIGH</b>\n\n"
+                )
+                
+            alert_msg += (
+                f"🥇 ทองคำและตลาดการเงินอาจเกิดความผันผวนสูง โปรดเตรียมพร้อมรับมือนะครับผม\n"
+                f"<i>กระผม Markus Anna จะรายงานผลการวิเคราะห์ทันทีที่ข่าวออกครับผม 🎩</i>"
+            )
+            
+            # Send to all subscribers
+            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+            for sub in subscribers:
+                try:
+                    with httpx.Client(timeout=10.0) as client:
+                        client.post(url, json={
+                            "chat_id": sub.chat_id,
+                            "text": alert_msg,
+                            "parse_mode": "HTML"
+                        })
+                except Exception as e:
+                    log_event(db, "ERROR", module_name, f"Failed to send pre-alert to {sub.chat_id}: {e}")
+            
+            # Mark all these items as sent for the 30-min window
+            for item in items:
+                new_sent_map = dict(item.pre_alert_sent or {})
+                new_sent_map["30"] = True
+                item.pre_alert_sent = new_sent_map
+                
+            db.commit()
+            
+            log_event(db, "INFO", module_name,
+                f"Sent 30-min consolidated pre-alert for {len(items)} events to {len(subscribers)} subscribers.")
+                
     except Exception as e:
         log_event(db, "ERROR", module_name, f"Error in send_pre_event_alerts: {str(e)}")
 
