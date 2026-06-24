@@ -363,6 +363,7 @@ async def telegram_webhook(update: dict, background_tasks: BackgroundTasks, db: 
     text = message.get("text", "").strip()
     chat = message.get("chat", {})
     chat_id = chat.get("id")
+    chat_type = chat.get("type", "private")  # "private", "group", "supergroup", "channel"
     
     if not text or not chat_id:
         return {"status": "ok"}
@@ -370,8 +371,26 @@ async def telegram_webhook(update: dict, background_tasks: BackgroundTasks, db: 
     bot_token, _ = get_telegram_credentials(db)
     if not bot_token:
         return {"status": "no token"}
+    
+    # --- Group/Supergroup: Block all commands ---
+    # Groups only receive automatic alerts. Commands are for private chats only (premium tier).
+    if chat_type in ("group", "supergroup", "channel") and text.startswith("/"):
+        reply_text = (
+            "🎩 <b>กระผม Markus Anna ขอเรียนแจ้งด้วยความสุภาพครับผม</b>\n\n"
+            "การใช้งานคำสั่งในกลุ่มยังไม่เปิดให้บริการในแพ็คเกจนี้นะครับ\n"
+            "ในกลุ่มนี้ กระผมจะทำหน้าที่ส่ง <b>รายงานข่าวสารอัตโนมัติ</b> เมื่อมีข่าวสำคัญเท่านั้นครับผม\n\n"
+            "หากท่านต้องการใช้งานคำสั่งพิเศษทั้งหมด กรุณาติดต่อกระผมผ่าน <b>แชทส่วนตัว</b> นะครับผม 🙏"
+        )
+        try:
+            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+            payload = {"chat_id": chat_id, "text": reply_text, "parse_mode": "HTML"}
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post(url, json=payload)
+        except Exception as e:
+            print(f"Error sending group block reply: {e}")
+        return {"status": "ok"}
         
-    # Process commands
+    # Process commands (private chat only)
     if text.startswith("/"):
         command = text.split()[0].lower()
         
