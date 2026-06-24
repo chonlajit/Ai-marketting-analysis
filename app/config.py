@@ -72,7 +72,7 @@ DEFAULT_FEEDS = [
     },
     {
         "name": "Forex Factory Calendar",
-        "url": "https://www.forexfactory.com/ff_calendar_thisweek.xml",
+        "url": "https://nfs.faireconomy.media/ff_calendar_thisweek.xml",
         "tier": 1,
         "active": True,
         "is_calendar": True

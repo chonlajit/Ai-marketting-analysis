@@ -52,6 +52,13 @@ def init_db():
             if not exists:
                 db.add(Setting(key=key, value=value))
                 
+        # Update old Forex Factory URL if it exists
+        old_ff_feed = db.query(FeedConfig).filter(FeedConfig.url == "https://www.forexfactory.com/ff_calendar_thisweek.xml").first()
+        if old_ff_feed:
+            old_ff_feed.url = "https://nfs.faireconomy.media/ff_calendar_thisweek.xml"
+            db.commit()
+            print("Migration: Updated Forex Factory calendar feed URL to faireconomy.media")
+
         # Seed feeds
         for f in DEFAULT_FEEDS:
             exists = db.query(FeedConfig).filter(FeedConfig.url == f["url"]).first()
