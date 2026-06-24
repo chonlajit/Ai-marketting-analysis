@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Financial News Intelligence Platform</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS (Wait, standard web rules say avoid Tailwind unless explicitly asked; let's use Vanilla CSS and write index.html with class references, then build a stunning custom style.css) -->
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-area">
+                <i data-lucide="cpu" class="logo-icon animate-pulse"></i>
+                <div class="logo-text">
+                    <span class="brand-title">FinAI</span>
+                    <span class="brand-subtitle">Intelligence</span>
+                </div>
+            </div>
+            
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-tab="dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>แดชบอร์ด</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="news">
+                    <i data-lucide="newspaper"></i>
+                    <span>ข่าวการเงินทั้งหมด</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="calendar">
+                    <i data-lucide="calendar"></i>
+                    <span>ปฏิทินเศรษฐกิจ</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="feeds">
+                    <i data-lucide="rss"></i>
+                    <span>แหล่งข่าว RSS</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="settings">
+                    <i data-lucide="settings"></i>
+                    <span>การตั้งค่าเชื่อมต่อ</span>
+                </a>
+                <a href="#" class="nav-item" data-tab="logs">
+                    <i data-lucide="terminal"></i>
+                    <span>ประวัติบันทึกระบบ</span>
+                </a>
+            </nav>
+            
+            <div class="system-status">
+                <div class="status-indicator">
+                    <span class="status-dot green animate-ping-slow"></span>
+                    <span class="status-label">Worker Active</span>
+                </div>
+                <button id="btn-trigger-fetch" class="btn btn-primary btn-sm btn-full mt-10">
+                    <i data-lucide="refresh-cw" class="icon-spin-hover"></i> ดึงข่าวทันที
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="content-header">
+                <div class="header-title">
+                    <h1 id="page-title">แดชบอร์ดสรุปผลการเงิน</h1>
+                    <p class="text-muted" id="page-subtitle">ภาพรวมความเคลื่อนไหวตลาดการเงินและการกรองข่าวจาก AI</p>
+                </div>
+                
+                <div class="user-meta">
+                    <div id="connection-warning" class="warning-badge hidden">
+                        <i data-lucide="alert-triangle"></i>
+                        <span>ตั้งค่า API Key ก่อนเริ่มทำงาน</span>
+                    </div>
+                    <div class="time-meta">
+                        <i data-lucide="clock"></i>
+                        <span id="current-time">00:00:00</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Container for dynamic tabs -->
+            <div class="tab-content-wrapper">
+                
+                <!-- TAB: DASHBOARD -->
+                <section id="tab-dashboard" class="tab-content active">
+                    <!-- Stats Cards Grid -->
+                    <div class="stats-grid">
+                        <div class="card stat-card">
+                            <div class="stat-icon blue">
+                                <i data-lucide="newspaper"></i>
+                            </div>
+                            <div class="stat-details">
+                                <span class="stat-num" id="stat-total-fetched">0</span>
+                                <span class="stat-title">ข่าวสารทั้งหมดที่ดึงมา</span>
+                            </div>
+                        </div>
+                        <div class="card stat-card">
+                            <div class="stat-icon red-glow">
+                                <i data-lucide="alert-circle"></i>
+                            </div>
+                            <div class="stat-details">
+                                <span class="stat-num" id="stat-important-count">0</span>
+                                <span class="stat-title">ข่าวสำคัญ (High Impact)</span>
+                            </div>
+                        </div>
+                        <div class="card stat-card">
+                            <div class="stat-icon gray">
+                                <i data-lucide="eye-off"></i>
+                            </div>
+                            <div class="stat-details">
+                                <span class="stat-num" id="stat-noise-count">0</span>
+                                <span class="stat-title">ข่าวทั่วไป/ข่าวขยะ</span>
+                            </div>
+                        </div>
+                        <div class="card stat-card">
+                            <div class="stat-icon green">
+                                <i data-lucide="send"></i>
+                            </div>
+                            <div class="stat-details">
+                                <span class="stat-num" id="stat-telegram-sent">0</span>
+                                <span class="stat-title">ส่งไป Telegram แล้ว</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sentiment & Summary Section -->
+                    <div class="dashboard-middle-section mt-20">
+                        <!-- Sentiment Box -->
+                        <div class="card sentiment-card">
+                            <div class="card-header">
+                                <h3><i data-lucide="bar-chart-3"></i> แนวโน้มตลาด 48 ชม. ที่ผ่านมา (Market Sentiment)</h3>
+                                <span class="badge badge-info">AI Analysis</span>
+                            </div>
+                            <div class="sentiment-bars">
+                                <div class="sentiment-item">
+                                    <div class="sentiment-header">
+                                        <span class="asset-name">💵 ดอลลาร์สหรัฐ (USD)</span>
+                                        <span id="sentiment-val-usd" class="sentiment-val text-muted">บวก: 0 | ลบ: 0</span>
+                                    </div>
+                                    <div class="sentiment-bar-track">
+                                        <div id="bar-usd-pos" class="sentiment-bar-fill pos" style="width: 0%"></div>
+                                        <div id="bar-usd-neg" class="sentiment-bar-fill neg" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                <div class="sentiment-item">
+                                    <div class="sentiment-header">
+                                        <span class="asset-name">🏆 ทองคำ (Gold)</span>
+                                        <span id="sentiment-val-gold" class="sentiment-val text-muted">บวก: 0 | ลบ: 0</span>
+                                    </div>
+                                    <div class="sentiment-bar-track">
+                                        <div id="bar-gold-pos" class="sentiment-bar-fill pos" style="width: 0%"></div>
+                                        <div id="bar-gold-neg" class="sentiment-bar-fill neg" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                <div class="sentiment-item">
+                                    <div class="sentiment-header">
+                                        <span class="asset-name">📈 ดัชนี Nasdaq</span>
+                                        <span id="sentiment-val-nasdaq" class="sentiment-val text-muted">บวก: 0 | ลบ: 0</span>
+                                    </div>
+                                    <div class="sentiment-bar-track">
+                                        <div id="bar-nasdaq-pos" class="sentiment-bar-fill pos" style="width: 0%"></div>
+                                        <div id="bar-nasdaq-neg" class="sentiment-bar-fill neg" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                                <div class="sentiment-item">
+                                    <div class="sentiment-header">
+                                        <span class="asset-name">📊 ดัชนี S&P 500</span>
+                                        <span id="sentiment-val-sp500" class="sentiment-val text-muted">บวก: 0 | ลบ: 0</span>
+                                    </div>
+                                    <div class="sentiment-bar-track">
+                                        <div id="bar-sp500-pos" class="sentiment-bar-fill pos" style="width: 0%"></div>
+                                        <div id="bar-sp500-neg" class="sentiment-bar-fill neg" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Operations Card -->
+                        <div class="card ops-card">
+                            <div class="card-header">
+                                <h3><i data-lucide="zap"></i> การควบคุมและจัดการด่วน</h3>
+                            </div>
+                            <div class="ops-buttons">
+                                <button id="btn-quick-sync" class="btn btn-secondary btn-full">
+                                    <i data-lucide="refresh-cw"></i> บังคับดึงข้อมูล RSS ใหม่
+                                </button>
+                                <button id="btn-process-pending" class="btn btn-secondary btn-full mt-10">
+                                    <i data-lucide="play"></i> รันประมวลผลข่าวคงค้างทั้งหมด
+                                </button>
+                                <button id="btn-open-settings" class="btn btn-primary btn-full mt-10">
+                                    <i data-lucide="sliders"></i> ไปที่ตั้งค่าการเชื่อมต่อ API
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Highlights Section -->
+                    <div class="mt-20">
+                        <div class="section-title-bar">
+                            <h2>🔥 ข่าวสำคัญล่าสุด (High Impact Highlights)</h2>
+                        </div>
+                        <div class="highlight-list" id="dashboard-highlights">
+                            <!-- Populated by JavaScript -->
+                            <div class="empty-state">
+                                <i data-lucide="inbox"></i>
+                                <p>ไม่พบข่าวสำคัญในช่วงนี้ หรือกำลังโหลดข้อมูล...</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- TAB: ALL NEWS -->
+                <section id="tab-news" class="tab-content">
+                    <div class="filter-bar card">
+                        <div class="filter-group">
+                            <label>ระดับความสำคัญ:</label>
+                            <select id="filter-news-importance">
+                                <option value="all">ทั้งหมด</option>
+                                <option value="important">ข่าวสำคัญ (Important)</option>
+                                <option value="noise">ข่าวทั่วไป (Noise)</option>
+                                <option value="pending">รอการวิเคราะห์ (Pending)</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>แหล่งที่มา:</label>
+                            <select id="filter-news-source">
+                                <option value="all">ทั้งหมด</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="filter-group flex-grow">
+                            <label>ค้นหาข่าว:</label>
+                            <input type="text" id="filter-news-search" placeholder="พิมพ์ชื่อข่าวหรือเนื้อหา...">
+                        </div>
+                        <button id="btn-apply-filters" class="btn btn-secondary">กรอง</button>
+                    </div>
+
+                    <div class="news-list-container mt-20" id="all-news-list">
+                        <!-- Loaded by JavaScript -->
+                    </div>
+                </section>
+                
+                <!-- TAB: ECONOMIC CALENDAR -->
+                <section id="tab-calendar" class="tab-content">
+                    <div class="section-desc">
+                        <p class="text-muted">ตารางปฏิทินเศรษฐกิจรายสัปดาห์ดึงข้อมูลแบบเรียลไทม์จาก Forex Factory Calendar โดยระบบจะประมวลผลข่าวระดับ High Impact เข้าสู่การวิเคราะห์แนวโน้มตลาดอัตโนมัติ</p>
+                    </div>
+                    
+                    <div class="calendar-list-container mt-15" id="calendar-events-list">
+                        <!-- Loaded by JavaScript -->
+                    </div>
+                </section>
+                
+                <!-- TAB: FEEDS CONFIG -->
+                <section id="tab-feeds" class="tab-content">
+                    <div class="section-title-bar">
+                        <h2>จัดการแหล่งข่าวสาร (RSS / Calendar Feed Management)</h2>
+                        <button id="btn-add-feed-modal" class="btn btn-primary btn-sm"><i data-lucide="plus"></i> เพิ่มแหล่งข่าว</button>
+                    </div>
+                    
+                    <div class="feeds-grid mt-15" id="feeds-config-list">
+                        <!-- Loaded by JavaScript -->
+                    </div>
+                </section>
+                
+                <!-- TAB: SETTINGS -->
+                <section id="tab-settings" class="tab-content">
+                    <div class="card settings-form-card">
+                        <div class="card-header">
+                            <h3><i data-lucide="key"></i> ตั้งค่ารหัสผ่านเชื่อมต่อบริการภายนอก</h3>
+                        </div>
+                        <form id="settings-form" class="mt-15">
+                            <div class="form-group">
+                                <label for="setting-gemini-api-key">Gemini API Key (Google AI Studio)</label>
+                                <div class="input-password-wrapper">
+                                    <input type="password" id="setting-gemini-api-key" placeholder="AI Studio Key เริ่มต้นด้วย AIzaSy...">
+                                    <button type="button" class="btn-toggle-password"><i data-lucide="eye"></i></button>
+                                </div>
+                                <p class="help-text">ใช้โมเดล gemini-2.5-flash เพื่อประเมินทิศทางค่าเงินและตัวเลขทางเศรษฐกิจแบบความถูกต้องสูง</p>
+                            </div>
+                            
+                            <div class="form-group mt-15">
+                                <label for="setting-telegram-bot-token">Telegram Bot Token</label>
+                                <div class="input-password-wrapper">
+                                    <input type="password" id="setting-telegram-bot-token" placeholder="Token ได้จาก @BotFather ตัวอย่าง: 123456789:ABCdefGhI...">
+                                    <button type="button" class="btn-toggle-password"><i data-lucide="eye"></i></button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group mt-15">
+                                <label for="setting-telegram-chat-id">Telegram Chat ID (Channel หรือ Group)</label>
+                                <input type="text" id="setting-telegram-chat-id" placeholder="ตัวอย่าง: -1001234567890 หรือ @ChannelName">
+                                <p class="help-text">อย่าลืมดึง Bot ที่สร้างเข้าไปเป็น Admin ใน Channel/Group เพื่อให้ส่งสำเร็จ</p>
+                            </div>
+                            
+                            <div class="form-row mt-15">
+                                <div class="form-group half">
+                                    <label for="setting-fetch-interval">เวลาความถี่ในการเช็คข่าว (นาที)</label>
+                                    <input type="number" id="setting-fetch-interval" min="1" max="60" value="5">
+                                </div>
+                                <div class="form-group half">
+                                    <label for="setting-worker-active">สถานะตัวประมวลผลเบื้องหลัง (Background Worker)</label>
+                                    <div class="toggle-switch">
+                                        <input type="checkbox" id="setting-worker-active" checked>
+                                        <label for="setting-worker-active" class="toggle-label"></label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-actions mt-20">
+                                <button type="button" id="btn-test-telegram" class="btn btn-secondary"><i data-lucide="send"></i> ทดสอบส่ง Telegram</button>
+                                <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> บันทึกการตั้งค่า</button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+                
+                <!-- TAB: LOGS -->
+                <section id="tab-logs" class="tab-content">
+                    <div class="logs-header-bar">
+                        <span class="text-muted">ความเคลื่อนไหวการรันระบบ, การคัดกรองข่าว และการวิเคราะห์ AI แบบสด</span>
+                        <div class="logs-actions">
+                            <button id="btn-refresh-logs" class="btn btn-secondary btn-sm"><i data-lucide="rotate-cw"></i> รีเฟรช</button>
+                        </div>
+                    </div>
+                    
+                    <div class="terminal-container mt-10">
+                        <div class="terminal-header">
+                            <div class="window-dot red"></div>
+                            <div class="window-dot yellow"></div>
+                            <div class="window-dot green"></div>
+                            <span class="terminal-title">system_logs.sh - live output</span>
+                        </div>
+                        <div class="terminal-body" id="logs-terminal">
+                            <!-- Logs dynamically loaded -->
+                        </div>
+                    </div>
+                </section>
+                
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for adding/editing feeds -->
+    <div id="feed-modal" class="modal-overlay hidden">
+        <div class="modal-container card">
+            <div class="modal-header">
+                <h3 id="feed-modal-title">เพิ่มแหล่งข่าวใหม่</h3>
+                <button class="modal-close btn-icon-only"><i data-lucide="x"></i></button>
+            </div>
+            <form id="feed-modal-form" class="mt-15">
+                <input type="hidden" id="modal-feed-id">
+                
+                <div class="form-group">
+                    <label for="modal-feed-name">ชื่อแหล่งข่าว (Name)</label>
+                    <input type="text" id="modal-feed-name" placeholder="ตัวอย่าง: Reuters Business" required>
+                </div>
+                
+                <div class="form-group mt-15">
+                    <label for="modal-feed-url">RSS / XML URL</label>
+                    <input type="url" id="modal-feed-url" placeholder="http://example.com/rss" required>
+                </div>
+                
+                <div class="form-row mt-15">
+                    <div class="form-group half">
+                        <label for="modal-feed-tier">ความสำคัญข่าว (Tier)</label>
+                        <select id="modal-feed-tier">
+                            <option value="1">Tier 1 (ด่วนพิเศษ)</option>
+                            <option value="2">Tier 2 (ปานกลาง)</option>
+                            <option value="3">Tier 3 (สถิติ/ขั้นสูง)</option>
+                        </select>
+                    </div>
+                    <div class="form-group half checkbox-group">
+                        <input type="checkbox" id="modal-feed-is-calendar">
+                        <label for="modal-feed-is-calendar">เป็นปฏิทินเศรษฐกิจ (XML)</label>
+                    </div>
+                </div>
+                
+                <div class="form-actions mt-20">
+                    <button type="button" class="btn btn-secondary modal-cancel">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary">บันทึกแหล่งข่าว</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Alert toast for notifications -->
+    <div id="toast" class="toast hidden">
+        <span class="toast-message">แจ้งเตือนสำเร็จ</span>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
