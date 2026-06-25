@@ -30,29 +30,28 @@ def init_db():
                 conn.commit()
                 print("Migration: Added pre_alert_sent column to news_items.")
             except Exception:
-                pass  # Column already exists, no action needed
+                conn.rollback()
             # Add importance_percent column from filter phase
             try:
                 conn.execute(text("ALTER TABLE news_items ADD COLUMN importance_percent INTEGER"))
                 conn.commit()
                 print("Migration: Added importance_percent column to news_items.")
             except Exception:
-                pass
+                conn.rollback()
             # Add gold_impact_level column from filter phase
             try:
                 conn.execute(text("ALTER TABLE news_items ADD COLUMN gold_impact_level VARCHAR(50)"))
                 conn.commit()
                 print("Migration: Added gold_impact_level column to news_items.")
             except Exception:
-                pass
+                conn.rollback()
             # Add wants_pre_alerts to telegram_subscribers
             try:
-                # SQLite doesn't support setting default value on ADD COLUMN directly without default if boolean
-                conn.execute(text("ALTER TABLE telegram_subscribers ADD COLUMN wants_pre_alerts BOOLEAN DEFAULT 1"))
+                conn.execute(text("ALTER TABLE telegram_subscribers ADD COLUMN wants_pre_alerts BOOLEAN DEFAULT true"))
                 conn.commit()
                 print("Migration: Added wants_pre_alerts column to telegram_subscribers.")
             except Exception:
-                pass
+                conn.rollback()
 
         # Seed settings
         for key, value in DEFAULT_SETTINGS.items():
