@@ -137,9 +137,13 @@ def process_pending_items(db: Session):
     """Processes news items that are pending filtering, analysis, or Telegram dispatch."""
     from sqlalchemy import text
     module_name = "Worker: Main Pipeline"
+    cutoff_time = datetime.utcnow() - timedelta(hours=24)
     
-    # 1. Filter and analyze new news items (is_important IS NULL = not yet reviewed)
-    pending_items = db.query(NewsItem).filter(NewsItem.is_important.is_(None)).order_by(NewsItem.published_at.asc()).all()
+    # 1. Filter and analyze NEW news items (is_important IS NULL = not yet reviewed)
+    pending_items = db.query(NewsItem).filter(
+        NewsItem.is_important.is_(None),
+        NewsItem.published_at >= cutoff_time  # Only process recent items
+    ).order_by(NewsItem.published_at.asc()).all()
     log_event(db, "INFO", module_name, f"Step1 pending filter: {len(pending_items)} items.")
         
     for item in pending_items:
@@ -147,36 +151,55 @@ def process_pending_items(db: Session):
         is_important = filter_news(db, item)
         time.sleep(4.0)  # Sleep to avoid hitting Gemini API rate limits
         
-        # Phase 2: If important, analyze
-        if is_important:
+        # Phase 2: If important, analyze (RSS news only, not calendar)
+        if is_important and not item.is_calendar:
             analyzed = analyze_news(db, item)
             time.sleep(4.0)  # Sleep to avoid hitting Gemini API rate limits
             if analyzed:
-                # Phase 3: Dispatch to Telegram
                 send_to_telegram(db, item)
+        elif is_important and item.is_calendar:
+            # Calendar items already have all data — send directly without Gemini analysis
+            send_to_telegram(db, item)
                 
-    # 2. Catch up: items marked important but NO ai_analysis yet (JSON column: use .is_(None))
+    # 2. Catch up: RSS items marked important but NO ai_analysis yet
     un_analyzed = db.query(NewsItem).filter(
         NewsItem.is_important == True,
-        NewsItem.ai_analysis.is_(None)
+        NewsItem.is_calendar == False,  # RSS only — calendar doesn't need Gemini
+        NewsItem.ai_analysis.is_(None),
+        NewsItem.telegram_sent == False,
+        NewsItem.published_at >= cutoff_time  # Only last 24h — don't waste quota on old news
     ).all()
-    log_event(db, "INFO", module_name, f"Step2 pending analysis: {len(un_analyzed)} items.")
+    log_event(db, "INFO", module_name, f"Step2 pending analysis (RSS): {len(un_analyzed)} items.")
     for item in un_analyzed:
         log_event(db, "INFO", module_name, f"Analyzing: {item.title[:50]}")
         analyzed = analyze_news(db, item)
-        time.sleep(4.0)  # Sleep to avoid hitting Gemini API rate limits
+        time.sleep(4.0)
         if analyzed:
             send_to_telegram(db, item)
             
-    # 3. Catch up: analyzed but not sent to Telegram yet
-    unsent_items = db.query(NewsItem).filter(
+    # 3. Calendar items that are important but not yet sent (no Gemini needed)
+    unsent_calendar = db.query(NewsItem).filter(
         NewsItem.is_important == True,
-        NewsItem.ai_analysis.isnot(None),
-        NewsItem.telegram_sent == False
+        NewsItem.is_calendar == True,
+        NewsItem.telegram_sent == False,
+        NewsItem.published_at >= cutoff_time  # Only last 24h
     ).all()
-    log_event(db, "INFO", module_name, f"Step3 pending send: {len(unsent_items)} items.")
-    for item in unsent_items:
-        log_event(db, "INFO", module_name, f"Sending Telegram: {item.title[:50]}")
+    log_event(db, "INFO", module_name, f"Step3 unsent calendar items: {len(unsent_calendar)} items.")
+    for item in unsent_calendar:
+        log_event(db, "INFO", module_name, f"Sending calendar: {item.title[:50]}")
+        send_to_telegram(db, item)
+            
+    # 4. Catch up: RSS analyzed but not sent to Telegram yet
+    unsent_rss = db.query(NewsItem).filter(
+        NewsItem.is_important == True,
+        NewsItem.is_calendar == False,
+        NewsItem.ai_analysis.isnot(None),
+        NewsItem.telegram_sent == False,
+        NewsItem.published_at >= cutoff_time
+    ).all()
+    log_event(db, "INFO", module_name, f"Step4 unsent RSS: {len(unsent_rss)} items.")
+    for item in unsent_rss:
+        log_event(db, "INFO", module_name, f"Sending RSS: {item.title[:50]}")
         send_to_telegram(db, item)
 
 def send_pre_event_alerts(db: Session):
