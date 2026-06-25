@@ -19,6 +19,20 @@ def get_gemini_client(db: Session):
     genai.configure(api_key=api_key)
     return genai
 
+def _update_rate_limit_status(db: Session, has_error: bool):
+    """Updates the ai_rate_limit_error setting in DB."""
+    setting = db.query(Setting).filter(Setting.key == "ai_rate_limit_error").first()
+    status_str = "true" if has_error else "false"
+    if not setting:
+        setting = Setting(key="ai_rate_limit_error", value=status_str)
+        db.add(setting)
+    else:
+        setting.value = status_str
+    try:
+        db.commit()
+    except:
+        db.rollback()
+
 def filter_news(db: Session, item: NewsItem) -> bool:
     """
     Phase 1: Filter news using Gemini.
@@ -88,14 +102,19 @@ Return a JSON object in this exact format:
         
         status_str = "IMPORTANT" if item.is_important else "NOISE"
         log_event(db, "INFO", module_name, f"Processed '{item.title[:40]}...'. Result: {status_str}. Importance: {result.get('importance_percent', '?')}%. Gold: {result.get('gold_impact', '?')}. Reason: {item.filter_reason}")
+        _update_rate_limit_status(db, False)
         return item.is_important
         
     except Exception as e:
         db.rollback()
-        log_event(db, "ERROR", module_name, f"Error filtering news '{item.title[:40]}...': {str(e)}")
+        error_msg = str(e)
+        log_event(db, "ERROR", module_name, f"Error filtering news '{item.title[:40]}...': {error_msg}")
+        if "429" in error_msg or "quota" in error_msg.lower():
+            _update_rate_limit_status(db, True)
+            
         # In case of API issues, default to False to avoid spamming alerts
         item.is_important = False
-        item.filter_reason = f"Error during filter: {str(e)}"
+        item.filter_reason = f"Error during filter: {error_msg}"
         db.commit()
         return False
 
@@ -130,6 +149,11 @@ Analyze:
   2. "what_it_affects": ส่งผลต่ออะไร (What it affects - max 1 sentence, explain in a polite, gentle gentlemanly tone in Thai ending with ครับ/ครับผม)
   3. "what_to_watch_next": ควรจับตาอะไรต่อ (What to watch next - max 1 sentence, explain in a polite, gentle gentlemanly tone in Thai ending with ครับ/ครับผม)
 - The step-by-step reasoning chain (ขั้นตอนการวิเคราะห์เชิงเหตุและผล) in Thai (e.g. 'เงินเฟ้อสูง -> Fed ขึ้นดอกเบี้ย -> USD แข็งค่า -> ทองถูกกดดัน').
+
+CRITICAL INSTRUCTION FOR CALENDAR EVENTS: 
+If the news is a Calendar Event (e.g. Impact: High, Forecast: X, Previous: Y), you MUST analyze it as a Scenario Analysis based on the Forecast. 
+Assume the actual result will meet or exceed the Forecast. 
+ALWAYS assign an importance_score of 8 to 10 for High Impact calendar events, and assign a HIGH confidence_score (e.g., 85-95%) because these are major macroeconomic indicators. Do NOT assign low scores just because the actual result is not out yet.
 
 News Title: {item.title}
 News Source: {item.source}
@@ -168,9 +192,13 @@ Return a JSON object in this exact format:
         db.commit()
         
         log_event(db, "INFO", module_name, f"Successfully analyzed item '{item.title[:40]}...'. Importance: {result.get('importance_score')}/10, Confidence: {result.get('confidence_score')}%")
+        _update_rate_limit_status(db, False)
         return True
         
     except Exception as e:
         db.rollback()
-        log_event(db, "ERROR", module_name, f"Error analyzing news '{item.title[:40]}...': {str(e)}")
+        error_msg = str(e)
+        log_event(db, "ERROR", module_name, f"Error analyzing news '{item.title[:40]}...': {error_msg}")
+        if "429" in error_msg or "quota" in error_msg.lower():
+            _update_rate_limit_status(db, True)
         return False

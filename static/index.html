@@ -50,6 +50,10 @@
                     <i data-lucide="terminal"></i>
                     <span>ประวัติบันทึกระบบ</span>
                 </a>
+                <a href="#" class="nav-item" data-tab="history">
+                    <i data-lucide="send"></i>
+                    <span>ประวัติการส่ง (History)</span>
+                </a>
             </nav>
             
             <div class="system-status">
@@ -82,6 +86,15 @@
                     </div>
                 </div>
             </header>
+
+            <!-- AI Rate Limit Warning Banner -->
+            <div id="ai-rate-limit-banner" class="banner banner-danger hidden">
+                <div class="banner-icon"><i data-lucide="alert-octagon"></i></div>
+                <div class="banner-content">
+                    <h4 class="banner-title">ระบบปัญญาประดิษฐ์ (AI) หยุดทำงานชั่วคราวเนื่องจากใช้งานเกินโควต้า (Rate Limit Exceeded)</h4>
+                    <p class="banner-text">ระบบได้ระงับการวิเคราะห์ข่าวชั่วคราวเพื่อรอให้โควต้าฟื้นตัว (ข่าวที่ค้างอยู่จะถูกประมวลผลอัตโนมัติเมื่อระบบกลับมาใช้งานได้)</p>
+                </div>
+            </div>
 
             <!-- Container for dynamic tabs -->
             <div class="tab-content-wrapper">
@@ -352,6 +365,37 @@
                         <div class="terminal-body" id="logs-terminal">
                             <!-- Logs dynamically loaded -->
                         </div>
+                    </div>
+                </section>
+                
+                <!-- TAB: DISPATCH HISTORY -->
+                <section id="tab-history" class="tab-content">
+                    <div class="section-title-bar">
+                        <h2>ประวัติการส่งข้อความ (Message Dispatch History)</h2>
+                        <button id="btn-refresh-history" class="btn btn-secondary btn-sm"><i data-lucide="rotate-cw"></i> โหลดข้อมูลใหม่</button>
+                    </div>
+                    
+                    <div class="history-table-container mt-15">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>เวลาที่ส่ง (ไทย)</th>
+                                    <th>หัวข้อข่าว</th>
+                                    <th>วิธีสั่งการ (Trigger)</th>
+                                    <th>เหตุผล/เงื่อนไข</th>
+                                    <th>สถานะ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body">
+                                <!-- Loaded by JavaScript -->
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-20">
+                                        <i data-lucide="inbox" style="display:inline-block; margin-bottom:10px;"></i><br>
+                                        กำลังโหลดประวัติการส่งข้อความ...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </section>
                 

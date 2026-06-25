@@ -151,20 +151,16 @@ def process_pending_items(db: Session):
         is_important = filter_news(db, item)
         time.sleep(4.0)  # Sleep to avoid hitting Gemini API rate limits
         
-        # Phase 2: If important, analyze (RSS news only, not calendar)
-        if is_important and not item.is_calendar:
+        # Phase 2: If important, analyze
+        if is_important:
             analyzed = analyze_news(db, item)
             time.sleep(4.0)  # Sleep to avoid hitting Gemini API rate limits
             if analyzed:
                 send_to_telegram(db, item)
-        elif is_important and item.is_calendar:
-            # Calendar items already have all data — send directly without Gemini analysis
-            send_to_telegram(db, item)
                 
-    # 2. Catch up: RSS items marked important but NO ai_analysis yet
+    # 2. Catch up: Items marked important but NO ai_analysis yet
     un_analyzed = db.query(NewsItem).filter(
         NewsItem.is_important == True,
-        NewsItem.is_calendar == False,  # RSS only — calendar doesn't need Gemini
         NewsItem.ai_analysis.is_(None),
         NewsItem.telegram_sent == False,
         NewsItem.published_at >= cutoff_time  # Only last 24h — don't waste quota on old news
@@ -177,22 +173,12 @@ def process_pending_items(db: Session):
         if analyzed:
             send_to_telegram(db, item)
             
-    # 3. Calendar items that are important but not yet sent (no Gemini needed)
-    unsent_calendar = db.query(NewsItem).filter(
-        NewsItem.is_important == True,
-        NewsItem.is_calendar == True,
-        NewsItem.telegram_sent == False,
-        NewsItem.published_at >= cutoff_time  # Only last 24h
-    ).all()
-    log_event(db, "INFO", module_name, f"Step3 unsent calendar items: {len(unsent_calendar)} items.")
-    for item in unsent_calendar:
-        log_event(db, "INFO", module_name, f"Sending calendar: {item.title[:50]}")
-        send_to_telegram(db, item)
+    # (Step 3 removed as all items should now have AI analysis before sending)
+    pass
             
-    # 4. Catch up: RSS analyzed but not sent to Telegram yet
+    # 4. Catch up: Analyzed but not sent to Telegram yet
     unsent_rss = db.query(NewsItem).filter(
         NewsItem.is_important == True,
-        NewsItem.is_calendar == False,
         NewsItem.ai_analysis.isnot(None),
         NewsItem.telegram_sent == False,
         NewsItem.published_at >= cutoff_time
@@ -225,7 +211,7 @@ def send_pre_event_alerts(db: Session):
         if not bot_token:
             return
         
-        subscribers = db.query(TelegramSubscriber).all()
+        subscribers = db.query(TelegramSubscriber).filter(TelegramSubscriber.wants_pre_alerts == True).all()
         if not subscribers:
             return
         
@@ -300,7 +286,7 @@ def send_pre_event_alerts(db: Session):
                 f"<i>กระผม Markus Anna จะรายงานผลการวิเคราะห์ทันทีที่ข่าวออกครับผม 🎩</i>"
             )
             
-            # Send to all subscribers
+            # Send to all subscribers who want pre alerts
             url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
             for sub in subscribers:
                 try:
@@ -313,11 +299,21 @@ def send_pre_event_alerts(db: Session):
                 except Exception as e:
                     log_event(db, "ERROR", module_name, f"Failed to send pre-alert to {sub.chat_id}: {e}")
             
-            # Mark all these items as sent for the 30-min window
+            # Mark all these items as sent for the 30-min window and log history
+            from app.models import MessageHistory
             for item in items:
                 new_sent_map = dict(item.pre_alert_sent or {})
                 new_sent_map["30"] = True
                 item.pre_alert_sent = new_sent_map
+                
+                # Log to message history
+                hist = MessageHistory(
+                    news_item_id=item.id,
+                    trigger_type="pre_event",
+                    reason="แจ้งเตือนนับถอยหลัง 30 นาทีก่อนข่าวออก",
+                    status="success"
+                )
+                db.add(hist)
                 
             db.commit()
             

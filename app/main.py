@@ -45,6 +45,14 @@ def init_db():
                 print("Migration: Added gold_impact_level column to news_items.")
             except Exception:
                 pass
+            # Add wants_pre_alerts to telegram_subscribers
+            try:
+                # SQLite doesn't support setting default value on ADD COLUMN directly without default if boolean
+                conn.execute(text("ALTER TABLE telegram_subscribers ADD COLUMN wants_pre_alerts BOOLEAN DEFAULT 1"))
+                conn.commit()
+                print("Migration: Added wants_pre_alerts column to telegram_subscribers.")
+            except Exception:
+                pass
 
         # Seed settings
         for key, value in DEFAULT_SETTINGS.items():
@@ -238,7 +246,7 @@ def trigger_manual_telegram_send(item_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="News item must be analyzed by AI before sending to Telegram")
         
     log_event(db, "INFO", "API", f"Manual Telegram dispatch triggered for item: {item.title[:40]}...")
-    success = send_to_telegram(db, item)
+    success = send_to_telegram(db, item, trigger_type="manual_dashboard", reason="แอดมินกดบังคับส่งจากหน้าเว็บ")
     
     if not success:
         raise HTTPException(status_code=500, detail="Telegram dispatch failed. Check credentials and logs.")
@@ -377,6 +385,30 @@ def get_logs(limit: int = Query(100, ge=1, le=1000), db: Session = Depends(get_d
     """Retrieves recent system logs."""
     return db.query(LogEntry).order_by(desc(LogEntry.timestamp)).limit(limit).all()
 
+@app.get("/api/message_history")
+def get_message_history(limit: int = Query(100, ge=1, le=1000), db: Session = Depends(get_db)):
+    """Retrieves message dispatch history."""
+    from app.models import MessageHistory
+    history = db.query(MessageHistory).order_by(desc(MessageHistory.timestamp)).limit(limit).all()
+    # Enrich with news titles if available
+    result = []
+    for h in history:
+        item_title = "Unknown"
+        if h.news_item_id:
+            news = db.query(NewsItem).filter(NewsItem.id == h.news_item_id).first()
+            if news:
+                item_title = news.title
+        result.append({
+            "id": h.id,
+            "timestamp": h.timestamp.isoformat(),
+            "news_item_id": h.news_item_id,
+            "title": item_title,
+            "trigger_type": h.trigger_type,
+            "reason": h.reason,
+            "status": h.status
+        })
+    return result
+
 # --- Worker Override ---
 
 @app.post("/api/worker/run")
@@ -455,6 +487,8 @@ async def telegram_webhook(update: dict, background_tasks: BackgroundTasks, db: 
                     "• /stats - เรียกดูสถิติโดยรวมของระบบ FinAI\n"
                     "• /latest - เรียกดูสรุปวิเคราะห์ข่าวเด่นล่าสุด 3 รายการ\n"
                     "• /run - สั่งการให้กระผมค้นหาและวิเคราะห์ข่าวสารใหม่ในทันที\n"
+                    "• /alert_on - เปิดรับการแจ้งเตือนนับถอยหลัง 30 นาทีก่อนข่าวออก\n"
+                    "• /alert_off - ปิดรับการแจ้งเตือนนับถอยหลัง 30 นาทีก่อนข่าวออก\n"
                     "• /stop - ขอยกเลิกการรับรายงานข่าวสารอัตโนมัติชั่วคราว"
                 )
         elif command == "/stats":
@@ -495,6 +529,22 @@ async def telegram_webhook(update: dict, background_tasks: BackgroundTasks, db: 
             # Run background worker cycle and send report back to this chat
             background_tasks.add_task(run_and_report, str(chat_id), bot_token)
             reply_text = "🔄 <b>กระผม Markus Anna ได้รับคำสั่งแล้วครับผม!</b>\n\nกระผมกำลังเริ่มสแกนและวิเคราะห์ข่าวสารด้วย AI อยู่ขณะนี้ครับ กรุณารอสักครู่ กระผมจะส่งรายงานสรุปผลการสแกนกลับมาให้ท่านทันทีที่เสร็จสิ้นนะครับผม 🎩"
+        elif command == "/alert_on":
+            sub = db.query(TelegramSubscriber).filter(TelegramSubscriber.chat_id == str(chat_id)).first()
+            if sub:
+                sub.wants_pre_alerts = True
+                db.commit()
+                reply_text = "⏰ <b>กระผมเปิดการแจ้งเตือนล่วงหน้าให้แล้วครับผม!</b>\n\nท่านจะได้รับการแจ้งเตือนนับถอยหลัง 30 นาทีก่อนเวลาประกาศข่าว High Impact เสมอครับผม"
+            else:
+                reply_text = "🤖 ท่านยังไม่ได้อยู่ในรายชื่อผู้รับรายงาน กรุณาพิมพ์ /start ก่อนนะครับผม"
+        elif command == "/alert_off":
+            sub = db.query(TelegramSubscriber).filter(TelegramSubscriber.chat_id == str(chat_id)).first()
+            if sub:
+                sub.wants_pre_alerts = False
+                db.commit()
+                reply_text = "🔕 <b>กระผมปิดการแจ้งเตือนล่วงหน้าให้แล้วครับผม!</b>\n\nท่านจะไม่ได้รับการแจ้งเตือนนับถอยหลัง 30 นาทีก่อนข่าวออกแล้วครับ (แต่ข่าวสำคัญหลังประกาศจะยังคงส่งให้ตามปกตินะครับ)"
+            else:
+                reply_text = "🤖 ท่านยังไม่ได้อยู่ในรายชื่อผู้รับรายงาน กรุณาพิมพ์ /start ก่อนนะครับผม"
         elif command == "/stop":
             exists = db.query(TelegramSubscriber).filter(TelegramSubscriber.chat_id == str(chat_id)).first()
             if exists:

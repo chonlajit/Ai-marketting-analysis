@@ -61,4 +61,14 @@ class TelegramSubscriber(Base):
     chat_id = Column(String(100), unique=True, index=True, nullable=False)
     username = Column(String(100), nullable=True)
     subscribed_at = Column(DateTime, default=datetime.utcnow)
+    wants_pre_alerts = Column(Boolean, default=True)  # User toggle for pre-event countdowns
 
+class MessageHistory(Base):
+    __tablename__ = "message_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    news_item_id = Column(Integer, index=True, nullable=True)
+    trigger_type = Column(String(50), nullable=False)  # 'auto', 'manual_dashboard', 'pre_event'
+    reason = Column(String(200), nullable=True)
+    status = Column(String(20), default="success")  # 'success', 'failed'

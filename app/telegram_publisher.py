@@ -53,9 +53,18 @@ def format_telegram_message(item: NewsItem) -> str:
     nasdaq_impact = get_dir_icon(assets.get("Nasdaq", {}).get("impact"))
     sp500_impact = get_dir_icon(assets.get("SP500", {}).get("impact"))
     
+    # Format local time (UTC+7 for Thailand)
+    from datetime import timedelta
+    local_time = item.published_at + timedelta(hours=7)
+    time_str = local_time.strftime('%d/%m/%Y %H:%M')
+
+    # Get importance percent from filter step
+    imp_percent_str = f" ({item.importance_percent}%)" if item.importance_percent else ""
+
     # Build text
     msg = f"{header}\n"
     msg += f"📰 <b>{item.title}</b>\n"
+    msg += f"📅 วันที่/เวลา (ไทย): <b>{time_str}</b>\n"
     msg += f"📍 แหล่งที่มา: {item.source}\n\n"
     
     if item.is_calendar and item.calendar_details:
@@ -80,12 +89,12 @@ def format_telegram_message(item: NewsItem) -> str:
         msg += "🧠 <b>ขั้นตอนวิเคราะห์ (Reasoning Chain):</b>\n"
         msg += f"<code>{reasoning}</code>\n\n"
         
-    msg += f"🎯 ความมั่นใจ: <b>{confidence}%</b> | คะแนนความสำคัญ: <b>{importance}/10</b>\n"
+    msg += f"🎯 ความมั่นใจ: <b>{confidence}%</b> | คะแนนความสำคัญ: <b>{importance}/10</b>{imp_percent_str}\n"
     msg += f"🔗 <a href='{item.url}'>อ่านข่าวต้นฉบับ (Full Article)</a>"
     
     return msg
 
-def send_to_telegram(db: Session, item: NewsItem) -> bool:
+def send_to_telegram(db: Session, item: NewsItem, trigger_type: str = "auto", reason: str = "ระบบวิเคราะห์อัตโนมัติพบว่าสำคัญ") -> bool:
     """Sends formatted HTML report to the configured Telegram channel/group and all active subscribers."""
     module_name = "Telegram Publisher"
     
@@ -140,6 +149,16 @@ def send_to_telegram(db: Session, item: NewsItem) -> bool:
             # Update database status
             item.telegram_sent = True
             item.telegram_sent_at = datetime.utcnow()
+            
+            # Log to MessageHistory
+            from app.models import MessageHistory
+            hist = MessageHistory(
+                news_item_id=item.id,
+                trigger_type=trigger_type,
+                reason=reason,
+                status="success"
+            )
+            db.add(hist)
             db.commit()
             log_event(db, "INFO", module_name, f"Successfully dispatched message for '{item.title[:40]}...' to {success_count} destinations.")
             return True
@@ -148,5 +167,19 @@ def send_to_telegram(db: Session, item: NewsItem) -> bool:
             log_event(db, "ERROR", module_name, f"Error updating send status in DB: {e}")
             return True
             
+    # Log failed history if no success
+    try:
+        from app.models import MessageHistory
+        hist = MessageHistory(
+            news_item_id=item.id,
+            trigger_type=trigger_type,
+            reason=reason,
+            status="failed"
+        )
+        db.add(hist)
+        db.commit()
+    except Exception:
+        pass
+        
     return False
 

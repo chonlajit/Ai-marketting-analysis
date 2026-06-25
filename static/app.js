@@ -88,6 +88,10 @@ function handleTabChange(tab) {
         titleEl.textContent = 'ประวัติบันทึกระบบ';
         subtitleEl.textContent = 'บันทึกการประมวลผลและการรันเซิร์ฟเวอร์แบบเรียลไทม์';
         loadLogs();
+    } else if (tab === 'history') {
+        titleEl.textContent = 'ประวัติการส่งข้อความ';
+        subtitleEl.textContent = 'บันทึกการส่งการแจ้งเตือนไปยัง Telegram ทั้งหมด';
+        loadHistoryList();
     }
     
     // Re-render Lucide icons
@@ -179,6 +183,14 @@ async function checkAPIKeys() {
         } else {
             warningEl.classList.add('hidden');
         }
+        
+        // Check rate limit status
+        const rateLimitBanner = document.getElementById('ai-rate-limit-banner');
+        if (data.ai_rate_limit_error === 'true') {
+            rateLimitBanner.classList.remove('hidden');
+        } else {
+            rateLimitBanner.classList.add('hidden');
+        }
     } catch (error) {
         console.error("Error checking settings:", error);
     }
@@ -240,6 +252,56 @@ async function loadNewsList() {
     } catch (error) {
         console.error("Error loading news list:", error);
         listEl.innerHTML = '<div class="empty-state"><p>เกิดข้อผิดพลาดในการโหลดข่าวสาร</p></div>';
+    }
+}
+
+// 4.5. Dispatch History View
+async function loadHistoryList() {
+    const tbody = document.getElementById('history-table-body');
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-20"><i data-lucide="loader-2" class="icon-spin-hover" style="display:inline-block; margin-bottom:10px;"></i><br>กำลังโหลดประวัติการส่งข้อความ...</td></tr>';
+    lucide.createIcons();
+    
+    try {
+        const response = await fetch('/api/message_history?limit=100');
+        const data = await response.json();
+        
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-20"><i data-lucide="inbox" style="display:inline-block; margin-bottom:10px;"></i><br>ยังไม่มีประวัติการส่งข้อความ</td></tr>';
+            lucide.createIcons();
+            return;
+        }
+        
+        tbody.innerHTML = '';
+        data.forEach(hist => {
+            const dateStr = new Date(hist.timestamp).toLocaleString('th-TH');
+            
+            // Format Trigger Type
+            let triggerBadge = '';
+            if (hist.trigger_type === 'auto') triggerBadge = '<span class="badge badge-primary">Auto (AI)</span>';
+            else if (hist.trigger_type === 'pre_event') triggerBadge = '<span class="badge badge-info">Pre-Event (30m)</span>';
+            else if (hist.trigger_type === 'manual_dashboard') triggerBadge = '<span class="badge badge-warning">Manual (Admin)</span>';
+            else triggerBadge = `<span class="badge">${hist.trigger_type}</span>`;
+            
+            // Format Status
+            let statusBadge = '';
+            if (hist.status === 'success') statusBadge = '<span class="status-indicator"><span class="status-dot green"></span> สำเร็จ</span>';
+            else statusBadge = '<span class="status-indicator"><span class="status-dot red"></span> ล้มเหลว</span>';
+            
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${dateStr}</td>
+                <td><strong>${hist.title || '-'}</strong></td>
+                <td>${triggerBadge}</td>
+                <td>${hist.reason || '-'}</td>
+                <td>${statusBadge}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+        
+        lucide.createIcons();
+    } catch (error) {
+        console.error("Error loading message history:", error);
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-20">เกิดข้อผิดพลาดในการโหลดประวัติ</td></tr>';
     }
 }
 
@@ -959,6 +1021,9 @@ function initGlobalEventListeners() {
     
     // Apply news filters button
     document.getElementById('btn-apply-filters').addEventListener('click', loadNewsList);
+    
+    // Refresh history button
+    document.getElementById('btn-refresh-history').addEventListener('click', loadHistoryList);
 }
 
 // 10. Helpers
