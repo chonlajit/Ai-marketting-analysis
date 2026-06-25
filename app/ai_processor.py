@@ -70,9 +70,9 @@ Return a JSON object in this exact format:
 หมายเหตุ: importance_percent คือระดับความสำคัญของข่าวนี้ต่อตลาดการเงินโลก 0-100% (100% = สำคัญมากที่สุด) และ gold_impact คือระดับผลกระทบต่อราคาทองคำ
 """
         
-        # Configure model (we use gemini-2.5-flash for speed and structured JSON)
+        # Configure model (gemini-1.5-flash: 1,500 req/day free tier vs gemini-2.5-flash: 20/day)
         model = client.GenerativeModel(
-            model_name="gemini-2.5-flash",
+            model_name="gemini-1.5-flash",
             generation_config={"response_mime_type": "application/json"}
         )
         
@@ -154,9 +154,9 @@ Return a JSON object in this exact format:
 }}
 """
         
-        # Configure model
+        # Configure model (gemini-1.5-flash: 1,500 req/day free tier vs gemini-2.5-flash: 20/day)
         model = client.GenerativeModel(
-            model_name="gemini-2.5-flash",
+            model_name="gemini-1.5-flash",
             generation_config={"response_mime_type": "application/json"}
         )
         
