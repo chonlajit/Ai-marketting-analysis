@@ -135,12 +135,12 @@ def run_and_report(chat_id: str, bot_token: str):
 
 def process_pending_items(db: Session):
     """Processes news items that are pending filtering, analysis, or Telegram dispatch."""
+    from sqlalchemy import text
     module_name = "Worker: Main Pipeline"
     
-    # 1. Filter and analyze new news items
-    pending_items = db.query(NewsItem).filter(NewsItem.is_important == None).order_by(NewsItem.published_at.asc()).all()
-    if pending_items:
-        log_event(db, "INFO", module_name, f"Found {len(pending_items)} pending items to process.")
+    # 1. Filter and analyze new news items (is_important IS NULL = not yet reviewed)
+    pending_items = db.query(NewsItem).filter(NewsItem.is_important.is_(None)).order_by(NewsItem.published_at.asc()).all()
+    log_event(db, "INFO", module_name, f"Step1 pending filter: {len(pending_items)} items.")
         
     for item in pending_items:
         # Phase 1: Filter
@@ -155,19 +155,28 @@ def process_pending_items(db: Session):
                 # Phase 3: Dispatch to Telegram
                 send_to_telegram(db, item)
                 
-    # 2. Catch up on items that were marked important but failed to analyze
-    un_analyzed = db.query(NewsItem).filter(NewsItem.is_important == True, NewsItem.ai_analysis == None).all()
+    # 2. Catch up: items marked important but NO ai_analysis yet (JSON column: use .is_(None))
+    un_analyzed = db.query(NewsItem).filter(
+        NewsItem.is_important == True,
+        NewsItem.ai_analysis.is_(None)
+    ).all()
+    log_event(db, "INFO", module_name, f"Step2 pending analysis: {len(un_analyzed)} items.")
     for item in un_analyzed:
-        log_event(db, "INFO", module_name, f"Retrying analysis for: {item.title[:40]}...")
+        log_event(db, "INFO", module_name, f"Analyzing: {item.title[:50]}")
         analyzed = analyze_news(db, item)
         time.sleep(4.0)  # Sleep to avoid hitting Gemini API rate limits
         if analyzed:
             send_to_telegram(db, item)
             
-    # 3. Catch up on items that were analyzed but failed Telegram dispatch (due to rate limits or connection drop)
-    unsent_items = db.query(NewsItem).filter(NewsItem.is_important == True, NewsItem.ai_analysis != None, NewsItem.telegram_sent == False).all()
+    # 3. Catch up: analyzed but not sent to Telegram yet
+    unsent_items = db.query(NewsItem).filter(
+        NewsItem.is_important == True,
+        NewsItem.ai_analysis.isnot(None),
+        NewsItem.telegram_sent == False
+    ).all()
+    log_event(db, "INFO", module_name, f"Step3 pending send: {len(unsent_items)} items.")
     for item in unsent_items:
-        log_event(db, "INFO", module_name, f"Retrying Telegram dispatch for: {item.title[:40]}...")
+        log_event(db, "INFO", module_name, f"Sending Telegram: {item.title[:50]}")
         send_to_telegram(db, item)
 
 def send_pre_event_alerts(db: Session):
