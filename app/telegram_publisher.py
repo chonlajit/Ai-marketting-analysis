@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from app.models import NewsItem, Setting
 from app.database import log_event
+import html
 
 def get_telegram_credentials(db: Session):
     """Retrieves Telegram Credentials from DB or Environment."""
@@ -61,11 +62,19 @@ def format_telegram_message(item: NewsItem) -> str:
     # Get importance percent from filter step
     imp_percent_str = f" ({item.importance_percent}%)" if item.importance_percent else ""
 
+    # Escape dangerous characters for Telegram HTML
+    safe_title = html.escape(item.title)
+    safe_source = html.escape(item.source)
+    safe_happened = html.escape(summary.get('what_happened', '-'))
+    safe_affects = html.escape(summary.get('what_it_affects', '-'))
+    safe_watch = html.escape(summary.get('what_to_watch_next', '-'))
+    safe_reasoning = html.escape(reasoning)
+
     # Build text
     msg = f"{header}\n"
-    msg += f"📰 <b>{item.title}</b>\n"
+    msg += f"📰 <b>{safe_title}</b>\n"
     msg += f"📅 วันที่/เวลา (ไทย): <b>{time_str}</b>\n"
-    msg += f"📍 แหล่งที่มา: {item.source}\n\n"
+    msg += f"📍 แหล่งที่มา: {safe_source}\n\n"
     
     if item.is_calendar and item.calendar_details:
         cal = item.calendar_details
@@ -81,13 +90,13 @@ def format_telegram_message(item: NewsItem) -> str:
     msg += f"• 📊 <b>S&P 500</b>: {sp500_impact}\n\n"
     
     msg += "🇹🇭 <b>สรุปประเด็นสำคัญ (Thai Summary):</b>\n"
-    msg += f"🔹 <b>เหตุการณ์:</b> {summary.get('what_happened', '-')}\n"
-    msg += f"🔹 <b>ส่งผลต่อ:</b> {summary.get('what_it_affects', '-')}\n"
-    msg += f"🔹 <b>สิ่งที่ต้องจับตา:</b> {summary.get('what_to_watch_next', '-')}\n\n"
+    msg += f"🔹 <b>เหตุการณ์:</b> {safe_happened}\n"
+    msg += f"🔹 <b>ส่งผลต่อ:</b> {safe_affects}\n"
+    msg += f"🔹 <b>สิ่งที่ต้องจับตา:</b> {safe_watch}\n\n"
     
     if reasoning:
         msg += "🧠 <b>ขั้นตอนวิเคราะห์ (Reasoning Chain):</b>\n"
-        msg += f"<code>{reasoning}</code>\n\n"
+        msg += f"<code>{safe_reasoning}</code>\n\n"
         
     msg += f"🎯 ความมั่นใจ: <b>{confidence}%</b> | คะแนนความสำคัญ: <b>{importance}/10</b>{imp_percent_str}\n"
     msg += f"🔗 <a href='{item.url}'>อ่านข่าวต้นฉบับ (Full Article)</a>"
