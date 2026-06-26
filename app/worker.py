@@ -262,9 +262,10 @@ def send_pre_event_alerts(db: Session):
             # Append each event details
             for item in items:
                 details = item.calendar_details or {}
+                import html
                 country = details.get("country", "")
-                forecast = details.get("forecast", "N/A")
-                previous = details.get("previous", "N/A")
+                forecast = html.escape(str(details.get("forecast", "N/A")))
+                previous = html.escape(str(details.get("previous", "N/A")))
                 
                 flag = {
                     "USD": "🇺🇸", "EUR": "🇪🇺", "GBP": "🇬🇧",
@@ -272,7 +273,7 @@ def send_pre_event_alerts(db: Session):
                     "CAD": "🇨🇦", "CHF": "🇨🇭", "NZD": "🇳🇿"
                 }.get(country, "🌍")
                 
-                clean_title = item.title.replace(f"[{country}] ", "")
+                clean_title = html.escape(item.title.replace(f"[{country}] ", ""))
                 
                 alert_msg += (
                     f"{flag} <b>[{country}] {clean_title}</b>\n"

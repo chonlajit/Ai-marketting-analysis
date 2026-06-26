@@ -78,10 +78,13 @@ def format_telegram_message(item: NewsItem) -> str:
     
     if item.is_calendar and item.calendar_details:
         cal = item.calendar_details
+        safe_country = html.escape(cal.get('country', ''))
+        safe_forecast = html.escape(cal.get('forecast', 'N/A'))
+        safe_previous = html.escape(cal.get('previous', 'N/A'))
         msg += "📊 <b>ตัวเลขเศรษฐกิจ (Economic Data):</b>\n"
-        msg += f"• ประเทศ: <b>{cal.get('country')}</b>\n"
-        msg += f"• คาดการณ์ (Forecast): <code>{cal.get('forecast')}</code>\n"
-        msg += f"• ครั้งก่อน (Previous): <code>{cal.get('previous')}</code>\n\n"
+        msg += f"• ประเทศ: <b>{safe_country}</b>\n"
+        msg += f"• คาดการณ์ (Forecast): <code>{safe_forecast}</code>\n"
+        msg += f"• ครั้งก่อน (Previous): <code>{safe_previous}</code>\n\n"
         
     msg += "📊 <b>ดัชนีวิเคราะห์ผลกระทบ (Market Impact):</b>\n"
     msg += f"• 💵 <b>USD</b>: {usd_impact}\n"
