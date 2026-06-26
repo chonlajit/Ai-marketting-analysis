@@ -86,7 +86,7 @@ Return a JSON object in this exact format:
         
         # Configure model
         model = client.GenerativeModel(
-            model_name="gemini-2.5-flash",
+            model_name="gemini-1.5-flash-8b",
             generation_config={"response_mime_type": "application/json"}
         )
         
@@ -180,7 +180,7 @@ Return a JSON object in this exact format:
         
         # Configure model
         model = client.GenerativeModel(
-            model_name="gemini-2.5-flash",
+            model_name="gemini-1.5-flash-8b",
             generation_config={"response_mime_type": "application/json"}
         )
         
