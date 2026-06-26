@@ -93,6 +93,26 @@ def fetch_forex_calendar(db: Session, feed: FeedConfig) -> int:
     new_events_count = 0
     
     try:
+        from app.models import Setting
+        last_fetch_setting = db.query(Setting).filter(Setting.key == "last_calendar_fetch_time").first()
+        now = datetime.utcnow()
+        
+        # Throttle calendar fetching to once every 30 minutes (1800 seconds) to avoid 429 errors
+        if last_fetch_setting:
+            try:
+                last_fetch_time = datetime.fromisoformat(last_fetch_setting.value)
+                if (now - last_fetch_time).total_seconds() < 1800:
+                    return 0
+            except:
+                pass
+                
+        # Update fetch time immediately to prevent concurrent rapid retries
+        if last_fetch_setting:
+            last_fetch_setting.value = now.isoformat()
+        else:
+            db.add(Setting(key="last_calendar_fetch_time", value=now.isoformat()))
+        db.commit()
+
         log_event(db, "INFO", module_name, f"Fetching calendar: {feed.name} from {feed.url}")
         
         with httpx.Client(headers=HEADERS, timeout=15.0) as client:
