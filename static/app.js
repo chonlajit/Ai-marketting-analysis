@@ -363,6 +363,7 @@ async function loadSettings() {
         const settings = await response.json();
         
         document.getElementById('setting-gemini-api-key').value = settings.gemini_api_key || '';
+        document.getElementById('setting-model-name').value = settings.model_name || 'gemini-2.5-flash-lite';
         document.getElementById('setting-telegram-bot-token').value = settings.telegram_bot_token || '';
         document.getElementById('setting-telegram-chat-id').value = settings.telegram_chat_id || '';
         document.getElementById('setting-fetch-interval').value = settings.fetch_interval_minutes || 5;
@@ -773,6 +774,7 @@ async function initSettingsForm() {
         
         const payload = {
             gemini_api_key: document.getElementById('setting-gemini-api-key').value,
+            model_name: document.getElementById('setting-model-name').value,
             telegram_bot_token: document.getElementById('setting-telegram-bot-token').value,
             telegram_chat_id: document.getElementById('setting-telegram-chat-id').value,
             fetch_interval_minutes: document.getElementById('setting-fetch-interval').value,
