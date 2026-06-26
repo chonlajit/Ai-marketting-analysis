@@ -28,6 +28,10 @@ class NewsItem(Base):
     # Pre-event alert tracking: tracks which countdown alerts were sent
     # Example: {"60": true, "30": true, "15": false, "5": false}
     pre_alert_sent = Column(JSON, nullable=True, default=None)
+    
+    # Filter phase extra data
+    importance_percent = Column(Integer, nullable=True)
+    gold_impact_level = Column(String(50), nullable=True)
 
 class FeedConfig(Base):
     __tablename__ = "feed_configs"
