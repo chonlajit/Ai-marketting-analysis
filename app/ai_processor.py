@@ -19,6 +19,11 @@ def get_gemini_client(db: Session):
     genai.configure(api_key=api_key)
     return genai
 
+def get_model_name(db: Session) -> str:
+    """Read the currently configured model name from settings (or env)."""
+    setting = db.query(Setting).filter(Setting.key == "model_name").first()
+    return setting.value if setting else "gemini-2.5-flash-lite"
+
 def _update_rate_limit_status(db: Session, has_error: bool):
     """Updates the ai_rate_limit_error setting in DB."""
     setting = db.query(Setting).filter(Setting.key == "ai_rate_limit_error").first()
@@ -86,7 +91,7 @@ Return a JSON object in this exact format:
         
         # Configure model
         model = client.GenerativeModel(
-            model_name="gemini-2.5-flash-lite",
+            model_name=get_model_name(db),
             generation_config={"response_mime_type": "application/json"}
         )
         
@@ -180,7 +185,7 @@ Return a JSON object in this exact format:
         
         # Configure model
         model = client.GenerativeModel(
-            model_name="gemini-2.5-flash-lite",
+            model_name=get_model_name(db),
             generation_config={"response_mime_type": "application/json"}
         )
         

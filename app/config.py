@@ -49,6 +49,7 @@ DEFAULT_SETTINGS = {
     "gemini_api_key": os.getenv("GEMINI_API_KEY", ""),
     "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN", ""),
     "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID", ""),
+    "model_name": os.getenv("AI_MODEL_NAME", "gemini-2.5-flash-lite"),
     "fetch_interval_minutes": "5",
     "filter_confidence_threshold": "70",  # Minimum confidence (0-100) to auto-post
     "worker_active": "true",
