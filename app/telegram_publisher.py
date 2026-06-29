@@ -22,9 +22,15 @@ def get_telegram_credentials(db: Session):
 
 def format_telegram_message(item: NewsItem) -> str:
     """Formats news and AI analysis into a beautiful HTML Telegram message."""
+    import html
+    
+    safe_url = html.escape(item.url or "")
+    safe_title = html.escape(item.title or "ไม่มีหัวข้อข่าว")
+    
     analysis = item.ai_analysis
     if not analysis:
-        return f"🎩 🚨 <b>รายงานข่าวสารจากกระผม Markus Anna ครับผม:</b>\n\n📰 <b>{item.title}</b>\n\n{item.raw_content}\n\n🔗 <a href='{item.url}'>อ่านข่าวต้นฉบับ (Full Article)</a>"
+        safe_content = html.escape(item.raw_content or "ไม่มีรายละเอียด")
+        return f"🎩 🚨 <b>รายงานข่าวสารจากกระผม Markus Anna ครับผม:</b>\n\n📰 <b>{safe_title}</b>\n\n{safe_content}\n\n🔗 <a href='{safe_url}'>อ่านข่าวต้นฉบับ (Full Article)</a>"
         
     importance = analysis.get("importance_score", 5)
     confidence = analysis.get("confidence_score", 50)
@@ -56,19 +62,18 @@ def format_telegram_message(item: NewsItem) -> str:
     
     # Format local time (UTC+7 for Thailand)
     from datetime import timedelta
-    local_time = item.published_at + timedelta(hours=7)
+    local_time = item.published_at + timedelta(hours=7) if item.published_at else datetime.utcnow() + timedelta(hours=7)
     time_str = local_time.strftime('%d/%m/%Y %H:%M')
 
     # Get importance percent from filter step
     imp_percent_str = f" ({item.importance_percent}%)" if item.importance_percent else ""
 
     # Escape dangerous characters for Telegram HTML
-    safe_title = html.escape(item.title)
-    safe_source = html.escape(item.source)
-    safe_happened = html.escape(summary.get('what_happened', '-'))
-    safe_affects = html.escape(summary.get('what_it_affects', '-'))
-    safe_watch = html.escape(summary.get('what_to_watch_next', '-'))
-    safe_reasoning = html.escape(reasoning)
+    safe_source = html.escape(item.source or "ไม่ทราบที่มา")
+    safe_happened = html.escape(str(summary.get('what_happened', '-')))
+    safe_affects = html.escape(str(summary.get('what_it_affects', '-')))
+    safe_watch = html.escape(str(summary.get('what_to_watch_next', '-')))
+    safe_reasoning = html.escape(str(reasoning))
 
     # Build text
     msg = f"{header}\n"
@@ -78,9 +83,9 @@ def format_telegram_message(item: NewsItem) -> str:
     
     if item.is_calendar and item.calendar_details:
         cal = item.calendar_details
-        safe_country = html.escape(cal.get('country', ''))
-        safe_forecast = html.escape(cal.get('forecast', 'N/A'))
-        safe_previous = html.escape(cal.get('previous', 'N/A'))
+        safe_country = html.escape(str(cal.get('country', '')))
+        safe_forecast = html.escape(str(cal.get('forecast', 'N/A')))
+        safe_previous = html.escape(str(cal.get('previous', 'N/A')))
         msg += "📊 <b>ตัวเลขเศรษฐกิจ (Economic Data):</b>\n"
         msg += f"• ประเทศ: <b>{safe_country}</b>\n"
         msg += f"• คาดการณ์ (Forecast): <code>{safe_forecast}</code>\n"
@@ -102,7 +107,7 @@ def format_telegram_message(item: NewsItem) -> str:
         msg += f"<code>{safe_reasoning}</code>\n\n"
         
     msg += f"🎯 ความมั่นใจ: <b>{confidence}%</b> | คะแนนความสำคัญ: <b>{importance}/10</b>{imp_percent_str}\n"
-    msg += f"🔗 <a href='{item.url}'>อ่านข่าวต้นฉบับ (Full Article)</a>"
+    msg += f"🔗 <a href='{safe_url}'>อ่านข่าวต้นฉบับ (Full Article)</a>"
     
     return msg
 
