@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initFeedForm();
     initGlobalEventListeners();
     initTradingViewCharts();
+    initAIProviderUI();
     
     // Initial data fetch
     loadDashboardData();
@@ -473,8 +474,7 @@ function updatePriceEstimate() {
     }
 }
 
-// Bind events for AI providers
-document.addEventListener('DOMContentLoaded', () => {
+function initAIProviderUI() {
     const providerSelect = document.getElementById('setting-ai-provider');
     const modelSelect = document.getElementById('setting-model-name');
     if (providerSelect && modelSelect) {
@@ -486,8 +486,10 @@ document.addEventListener('DOMContentLoaded', () => {
             modelSelect.dataset.savedModel = modelSelect.value;
             updatePriceEstimate();
         });
+        // Run once on init
+        setTimeout(() => updateModelDropdown(), 100);
     }
-});
+}
 
 // 7. Settings View
 async function loadSettings() {
