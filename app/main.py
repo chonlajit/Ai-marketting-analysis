@@ -190,7 +190,7 @@ def get_stats(timeframe: str = "48h", db: Session = Depends(get_db)):
         "pending_count": pending_news,
         "telegram_sent": telegram_sent,
         "active_feeds": active_feeds,
-        "sentiment_48h": sentiment
+        "sentiment": sentiment
     }
 
 @app.get("/api/news")
