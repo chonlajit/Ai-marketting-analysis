@@ -1,28 +1,8 @@
 import json
-import google.generativeai as genai
+import re
 from sqlalchemy.orm import Session
 from app.models import NewsItem, Setting
 from app.database import log_event
-
-def get_gemini_client(db: Session):
-    """Retrieves API Key from DB or environment and configures genai."""
-    api_key_setting = db.query(Setting).filter(Setting.key == "gemini_api_key").first()
-    api_key = api_key_setting.value if api_key_setting else ""
-    
-    if not api_key:
-        import os
-        api_key = os.getenv("GEMINI_API_KEY", "")
-        
-    if not api_key:
-        return None
-        
-    genai.configure(api_key=api_key)
-    return genai
-
-def get_model_name(db: Session) -> str:
-    """Read the currently configured model name from settings (or env)."""
-    setting = db.query(Setting).filter(Setting.key == "model_name").first()
-    return setting.value if setting else "gemini-2.5-flash-lite"
 
 def _update_rate_limit_status(db: Session, has_error: bool):
     """Updates the ai_rate_limit_error setting in DB."""
@@ -38,9 +18,90 @@ def _update_rate_limit_status(db: Session, has_error: bool):
     except:
         db.rollback()
 
+def _extract_json(text: str) -> dict:
+    """Helper to extract JSON from potentially markdown-wrapped model responses."""
+    text = text.strip()
+    # Remove markdown code blocks if present
+    if text.startswith("```json"):
+        text = text[7:]
+    elif text.startswith("```"):
+        text = text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    text = text.strip()
+    
+    # Fallback to regex if there's still preamble text
+    if not text.startswith("{"):
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
+            text = match.group(0)
+            
+    return json.loads(text)
+
+def execute_ai_prompt(db: Session, prompt: str) -> dict:
+    """Routes the prompt to the correct AI provider based on settings."""
+    ai_provider_setting = db.query(Setting).filter(Setting.key == "ai_provider").first()
+    provider = ai_provider_setting.value if ai_provider_setting else "gemini"
+    
+    model_name_setting = db.query(Setting).filter(Setting.key == "model_name").first()
+    model_name = model_name_setting.value if model_name_setting else "gemini-2.5-flash-lite"
+    
+    if provider == "gemini":
+        gemini_key = db.query(Setting).filter(Setting.key == "gemini_api_key").first()
+        api_key = gemini_key.value if gemini_key else ""
+        if not api_key:
+            import os
+            api_key = os.getenv("GEMINI_API_KEY", "")
+        if not api_key:
+            raise ValueError("Gemini API key is not configured.")
+            
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            generation_config={"response_mime_type": "application/json"}
+        )
+        response = model.generate_content(prompt)
+        return json.loads(response.text)
+        
+    elif provider in ["openai", "openrouter"]:
+        key_name = f"{provider}_api_key"
+        api_key_setting = db.query(Setting).filter(Setting.key == key_name).first()
+        api_key = api_key_setting.value if api_key_setting else ""
+        if not api_key:
+            import os
+            api_key = os.getenv(key_name.upper(), "")
+        if not api_key:
+            raise ValueError(f"{provider.capitalize()} API key is not configured.")
+            
+        import openai
+        base_url = "https://openrouter.ai/api/v1" if provider == "openrouter" else None
+        
+        # Avoid response_format param for openrouter as some models (e.g. Claude) might reject it
+        client_kwargs = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+            
+        client = openai.OpenAI(**client_kwargs)
+        
+        completion_kwargs = {
+            "model": model_name,
+            "messages": [{"role": "user", "content": prompt}]
+        }
+        
+        if provider == "openai":
+            completion_kwargs["response_format"] = {"type": "json_object"}
+            
+        response = client.chat.completions.create(**completion_kwargs)
+        content = response.choices[0].message.content
+        return _extract_json(content)
+        
+    else:
+        raise ValueError(f"Unknown AI provider: {provider}")
+
 def filter_news(db: Session, item: NewsItem) -> bool:
     """
-    Phase 1: Filter news using Gemini.
+    Phase 1: Filter news using the configured AI.
     Evaluates if headline is high impact for macroeconomic assets (USD, Gold, Nasdaq, SP500).
     Saves results to DB. Returns True if important, False otherwise.
     """
@@ -60,11 +121,6 @@ def filter_news(db: Session, item: NewsItem) -> bool:
             db.commit()
             return False
             
-    client = get_gemini_client(db)
-    if not client:
-        log_event(db, "ERROR", module_name, "Gemini API key is not configured.")
-        return False
-        
     try:
         # Prompt for filtering
         prompt = f"""
@@ -89,18 +145,10 @@ Return a JSON object in this exact format:
 หมายเหตุ: importance_percent คือระดับความสำคัญของข่าวนี้ต่อตลาดการเงินโลก 0-100% (100% = สำคัญมากที่สุด) และ gold_impact คือระดับผลกระทบต่อราคาทองคำ
 """
         
-        # Configure model
-        model = client.GenerativeModel(
-            model_name=get_model_name(db),
-            generation_config={"response_mime_type": "application/json"}
-        )
-        
-        response = model.generate_content(prompt)
-        result = json.loads(response.text)
+        result = execute_ai_prompt(db, prompt)
         
         item.is_important = result.get("is_important", False)
         item.filter_reason = result.get("reason", "No reason provided.")
-        # Store extra filter metadata in a dedicated field if available, else embed in filter_reason
         item.importance_percent = result.get("importance_percent", None)
         item.gold_impact_level = result.get("gold_impact", None)
         db.commit()
@@ -125,15 +173,11 @@ Return a JSON object in this exact format:
 
 def analyze_news(db: Session, item: NewsItem) -> bool:
     """
-    Phase 2: Deep Analysis and Scoring using Gemini.
+    Phase 2: Deep Analysis and Scoring.
     Generates impact directions (+, -, 0) for USD, Gold, Nasdaq, SP500, Thai summary, and confidence.
     """
     module_name = "AI: Analysis"
-    client = get_gemini_client(db)
-    if not client:
-        log_event(db, "ERROR", module_name, "Gemini API key is not configured.")
-        return False
-        
+    
     try:
         # Prompt for analysis
         prompt = f"""
@@ -182,15 +226,7 @@ Return a JSON object in this exact format:
   "reasoning_chain": "เงินเฟ้อสูง -> Fed มีแนวโน้มขึ้นดอกเบี้ย -> USD แข็งค่า -> ทองถูกกดดัน"
 }}
 """
-        
-        # Configure model
-        model = client.GenerativeModel(
-            model_name=get_model_name(db),
-            generation_config={"response_mime_type": "application/json"}
-        )
-        
-        response = model.generate_content(prompt)
-        result = json.loads(response.text)
+        result = execute_ai_prompt(db, prompt)
         
         # Save analysis to database
         item.ai_analysis = result

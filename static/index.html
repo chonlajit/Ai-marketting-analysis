@@ -289,18 +289,44 @@
                         </div>
                         <form id="settings-form" class="mt-15">
                             <div class="form-group">
-                                <label for="setting-gemini-api-key">Gemini API Key (Google AI Studio)</label>
+                                <label for="setting-ai-provider">ผู้ให้บริการ AI (AI Provider)</label>
+                                <select id="setting-ai-provider" class="form-control" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); color: var(--text-color); margin-top: 5px;">
+                                    <option value="gemini">Google Gemini (ฟรี / API Studio)</option>
+                                    <option value="openai">OpenAI (ChatGPT)</option>
+                                    <option value="openrouter">OpenRouter (รองรับทุกค่าย)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group mt-15" id="group-gemini-key">
+                                <label for="setting-gemini-api-key">Gemini API Key</label>
                                 <div class="input-password-wrapper">
                                     <input type="password" id="setting-gemini-api-key" placeholder="AI Studio Key เริ่มต้นด้วย AIzaSy...">
                                     <button type="button" class="btn-toggle-password"><i data-lucide="eye"></i></button>
                                 </div>
-                                <p class="help-text">รับ API Key ฟรีได้ที่ Google AI Studio</p>
+                            </div>
+
+                            <div class="form-group mt-15" id="group-openai-key" style="display: none;">
+                                <label for="setting-openai-api-key">OpenAI API Key</label>
+                                <div class="input-password-wrapper">
+                                    <input type="password" id="setting-openai-api-key" placeholder="เริ่มต้นด้วย sk-...">
+                                    <button type="button" class="btn-toggle-password"><i data-lucide="eye"></i></button>
+                                </div>
+                            </div>
+
+                            <div class="form-group mt-15" id="group-openrouter-key" style="display: none;">
+                                <label for="setting-openrouter-api-key">OpenRouter API Key</label>
+                                <div class="input-password-wrapper">
+                                    <input type="password" id="setting-openrouter-api-key" placeholder="เริ่มต้นด้วย sk-or-v1-...">
+                                    <button type="button" class="btn-toggle-password"><i data-lucide="eye"></i></button>
+                                </div>
                             </div>
                             
                             <div class="form-group mt-15">
                                 <label for="setting-model-name">AI Model Name (ชื่อโมเดล)</label>
-                                <input type="text" id="setting-model-name" placeholder="ตัวอย่าง: gemini-2.5-flash-lite, gemini-1.5-pro">
-                                <p class="help-text">แนะนำให้ใช้ gemini-2.5-flash-lite (จำกัดโควตาฟรี 1,500/วัน) หรือ gemini-1.5-pro (เก่งขึ้นแต่มีโควตาน้อยกว่า)</p>
+                                <select id="setting-model-name" class="form-control" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--card-bg); color: var(--text-color); margin-top: 5px;">
+                                    <!-- Options populated by JS -->
+                                </select>
+                                <p class="help-text" id="model-price-estimate" style="color: var(--primary-color); font-weight: 500; margin-top: 8px;">💰 ราคาประเมิน: โหลดข้อมูล...</p>
                             </div>
                             
                             <div class="form-group mt-15">

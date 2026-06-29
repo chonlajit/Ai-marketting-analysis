@@ -46,7 +46,10 @@ DATABASE_URL = parse_and_safe_url(os.getenv("DATABASE_URL", f"sqlite:///{INSTANC
 
 # Default configuration settings
 DEFAULT_SETTINGS = {
+    "ai_provider": os.getenv("AI_PROVIDER", "gemini"),
     "gemini_api_key": os.getenv("GEMINI_API_KEY", ""),
+    "openai_api_key": os.getenv("OPENAI_API_KEY", ""),
+    "openrouter_api_key": os.getenv("OPENROUTER_API_KEY", ""),
     "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN", ""),
     "telegram_chat_id": os.getenv("TELEGRAM_CHAT_ID", ""),
     "model_name": os.getenv("AI_MODEL_NAME", "gemini-2.5-flash-lite"),

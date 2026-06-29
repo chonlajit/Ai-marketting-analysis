@@ -356,14 +356,109 @@ async function loadFeeds() {
     }
 }
 
+// AI Provider & Model dynamic selection logic
+const aiModelsData = {
+    "gemini": [
+        { id: "gemini-2.5-flash-lite", name: "Gemini 2.5 Flash Lite (ฟรี / เร็ว)", price: "ฟรี (หรือ ~10-20 บาท)" },
+        { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash (ฟรี / มาตรฐาน)", price: "ฟรี (หรือ ~15-30 บาท)" },
+        { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro (ฉลาดสุด)", price: "~200-400 บาท/เดือน" }
+    ],
+    "openai": [
+        { id: "gpt-4o-mini", name: "GPT-4o-mini (ถูกสุด / เร็ว)", price: "~5-20 บาท/เดือน" },
+        { id: "gpt-4o", name: "GPT-4o (ฉลาดสุด)", price: "~150-350 บาท/เดือน" }
+    ],
+    "openrouter": [
+        { id: "openai/gpt-4o-mini", name: "GPT-4o-mini (ผ่าน OpenRouter)", price: "~5-20 บาท/เดือน" },
+        { id: "openai/gpt-4o", name: "GPT-4o (ผ่าน OpenRouter)", price: "~150-350 บาท/เดือน" },
+        { id: "anthropic/claude-3-5-haiku-20241022", name: "Claude 3.5 Haiku", price: "~20-40 บาท/เดือน" },
+        { id: "anthropic/claude-3-5-sonnet-20241022", name: "Claude 3.5 Sonnet", price: "~300-450 บาท/เดือน" }
+    ]
+};
+
+function updateModelDropdown() {
+    const provider = document.getElementById('setting-ai-provider').value;
+    const modelSelect = document.getElementById('setting-model-name');
+    const priceText = document.getElementById('model-price-estimate');
+    
+    // Save current selection to dataset to restore later if it exists in the new provider
+    const currentModel = modelSelect.dataset.savedModel || modelSelect.value;
+    
+    // Toggle UI keys
+    document.getElementById('group-gemini-key').style.display = provider === 'gemini' ? 'block' : 'none';
+    document.getElementById('group-openai-key').style.display = provider === 'openai' ? 'block' : 'none';
+    document.getElementById('group-openrouter-key').style.display = provider === 'openrouter' ? 'block' : 'none';
+    
+    // Update options
+    modelSelect.innerHTML = '';
+    const models = aiModelsData[provider] || [];
+    models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.name;
+        modelSelect.appendChild(opt);
+    });
+    
+    // Try to restore previous selection if it belongs to this provider
+    if (models.find(m => m.id === currentModel)) {
+        modelSelect.value = currentModel;
+    }
+    modelSelect.dataset.savedModel = modelSelect.value;
+    
+    // Update price estimate
+    updatePriceEstimate();
+}
+
+function updatePriceEstimate() {
+    const provider = document.getElementById('setting-ai-provider').value;
+    const modelSelect = document.getElementById('setting-model-name');
+    const priceText = document.getElementById('model-price-estimate');
+    
+    const models = aiModelsData[provider] || [];
+    const selectedModel = models.find(m => m.id === modelSelect.value);
+    if (selectedModel) {
+        priceText.textContent = `💰 ราคาประเมิน: ${selectedModel.price}`;
+    }
+}
+
+// Bind events for AI providers
+document.addEventListener('DOMContentLoaded', () => {
+    const providerSelect = document.getElementById('setting-ai-provider');
+    const modelSelect = document.getElementById('setting-model-name');
+    if (providerSelect && modelSelect) {
+        providerSelect.addEventListener('change', () => {
+            modelSelect.dataset.savedModel = ''; // Reset on provider change
+            updateModelDropdown();
+        });
+        modelSelect.addEventListener('change', () => {
+            modelSelect.dataset.savedModel = modelSelect.value;
+            updatePriceEstimate();
+        });
+    }
+});
+
 // 7. Settings View
 async function loadSettings() {
     try {
         const response = await fetch('/api/settings');
         const settings = await response.json();
         
+        document.getElementById('setting-ai-provider').value = settings.ai_provider || 'gemini';
         document.getElementById('setting-gemini-api-key').value = settings.gemini_api_key || '';
-        document.getElementById('setting-model-name').value = settings.model_name || 'gemini-2.5-flash-lite';
+        document.getElementById('setting-openai-api-key').value = settings.openai_api_key || '';
+        document.getElementById('setting-openrouter-api-key').value = settings.openrouter_api_key || '';
+        
+        // Setup dropdown and trigger change event to populate models correctly
+        if (typeof updateModelDropdown === 'function') {
+            // Wait to ensure DOM elements exist
+            setTimeout(() => {
+                const modelSelect = document.getElementById('setting-model-name');
+                if (settings.model_name) modelSelect.dataset.savedModel = settings.model_name;
+                updateModelDropdown();
+            }, 100);
+        } else {
+            document.getElementById('setting-model-name').value = settings.model_name || 'gemini-2.5-flash-lite';
+        }
+
         document.getElementById('setting-telegram-bot-token').value = settings.telegram_bot_token || '';
         document.getElementById('setting-telegram-chat-id').value = settings.telegram_chat_id || '';
         document.getElementById('setting-fetch-interval').value = settings.fetch_interval_minutes || 5;
@@ -773,7 +868,10 @@ async function initSettingsForm() {
         e.preventDefault();
         
         const payload = {
+            ai_provider: document.getElementById('setting-ai-provider').value,
             gemini_api_key: document.getElementById('setting-gemini-api-key').value,
+            openai_api_key: document.getElementById('setting-openai-api-key').value,
+            openrouter_api_key: document.getElementById('setting-openrouter-api-key').value,
             model_name: document.getElementById('setting-model-name').value,
             telegram_bot_token: document.getElementById('setting-telegram-bot-token').value,
             telegram_chat_id: document.getElementById('setting-telegram-chat-id').value,
