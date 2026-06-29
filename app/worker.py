@@ -273,7 +273,7 @@ def send_pre_event_alerts(db: Session):
                     "CAD": "🇨🇦", "CHF": "🇨🇭", "NZD": "🇳🇿"
                 }.get(country, "🌍")
                 
-                clean_title = html.escape(item.title.replace(f"[{country}] ", ""))
+                clean_title = html.escape((item.title or "").replace(f"[{country}] ", ""))
                 
                 alert_msg += (
                     f"{flag} <b>[{country}] {clean_title}</b>\n"
