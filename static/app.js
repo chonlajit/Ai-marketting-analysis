@@ -152,8 +152,8 @@ function initTradingViewCharts() {
     const assets = [
         { id: 'tv_usd', symbol: 'FX_IDC:USDTHB', title: 'USD/THB' },
         { id: 'tv_gold', symbol: 'OANDA:XAUUSD', title: 'Gold (XAU/USD)' },
-        { id: 'tv_nasdaq', symbol: 'NASDAQ:NDX', title: 'Nasdaq 100' },
-        { id: 'tv_sp500', symbol: 'SP:SPX', title: 'S&P 500' }
+        { id: 'tv_nasdaq', symbol: 'OANDA:NAS100USD', title: 'Nasdaq 100' },
+        { id: 'tv_sp500', symbol: 'OANDA:SPX500USD', title: 'S&P 500' }
     ];
     
     container.innerHTML = '';
