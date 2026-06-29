@@ -145,9 +145,17 @@
                     <div class="dashboard-middle-section mt-20">
                         <!-- Sentiment Box -->
                         <div class="card sentiment-card">
-                            <div class="card-header">
-                                <h3><i data-lucide="bar-chart-3"></i> แนวโน้มตลาด 48 ชม. ที่ผ่านมา (Market Sentiment)</h3>
-                                <span class="badge badge-info">AI Analysis</span>
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                <h3><i data-lucide="bar-chart-3"></i> แนวโน้มตลาด (Market Sentiment)</h3>
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <select id="sentiment-timeframe" class="form-control" style="padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color);">
+                                        <option value="today">วันนี้ (Today)</option>
+                                        <option value="yesterday">เมื่อวาน (Yesterday)</option>
+                                        <option value="48h" selected>48 ชม. ย้อนหลัง</option>
+                                        <option value="7d">7 วันย้อนหลัง</option>
+                                    </select>
+                                    <span class="badge badge-info">AI Analysis</span>
+                                </div>
                             </div>
                             <div class="sentiment-bars">
                                 <div class="sentiment-item">
@@ -209,6 +217,16 @@
                                     <i data-lucide="sliders"></i> ไปที่ตั้งค่าการเชื่อมต่อ API
                                 </button>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Market Charts Section -->
+                    <div class="mt-20">
+                        <div class="section-title-bar">
+                            <h2>📈 กราฟราคาตลาดเรียลไทม์ (Live Market Charts)</h2>
+                        </div>
+                        <div class="charts-grid" id="tv-charts-container">
+                            <!-- Charts will be injected here by app.js -->
                         </div>
                     </div>
 

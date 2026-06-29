@@ -1269,3 +1269,25 @@ body {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
+
+/* Live Market Charts */
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+@media (max-width: 900px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.chart-container {
+    height: 350px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+}

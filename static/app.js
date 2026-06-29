@@ -14,9 +14,14 @@ document.addEventListener('DOMContentLoaded', () => {
     initSettingsForm();
     initFeedForm();
     initGlobalEventListeners();
+    initTradingViewCharts();
     
     // Initial data fetch
     loadDashboardData();
+    
+    // Timeframe selector event
+    const tfSelect = document.getElementById('sentiment-timeframe');
+    if(tfSelect) tfSelect.addEventListener('change', loadStats);
     
     // Poll data every 7 seconds to keep dashboard alive
     setInterval(() => {
@@ -107,7 +112,8 @@ async function loadDashboardData() {
 
 async function loadStats() {
     try {
-        const response = await fetch('/api/stats');
+        const timeframe = document.getElementById('sentiment-timeframe')?.value || '48h';
+        const response = await fetch(`/api/stats?timeframe=${timeframe}`);
         stats = await response.json();
         
         // Populate DOM counters
@@ -117,10 +123,57 @@ async function loadStats() {
         document.getElementById('stat-telegram-sent').textContent = stats.telegram_sent;
         
         // Render Sentiment bars
-        renderSentimentBars(stats.sentiment_48h);
+        renderSentimentBars(stats.sentiment);
     } catch (error) {
         console.error("Error loading stats:", error);
     }
+}
+
+// 3.1 TradingView Charts
+function initTradingViewCharts() {
+    const container = document.getElementById('tv-charts-container');
+    if (!container) return;
+    
+    const assets = [
+        { id: 'tv_usd', symbol: 'FX_IDC:USDTHB', title: 'USD/THB' },
+        { id: 'tv_gold', symbol: 'OANDA:XAUUSD', title: 'Gold (XAU/USD)' },
+        { id: 'tv_nasdaq', symbol: 'NASDAQ:NDX', title: 'Nasdaq 100' },
+        { id: 'tv_sp500', symbol: 'SP:SPX', title: 'S&P 500' }
+    ];
+    
+    container.innerHTML = '';
+    
+    assets.forEach(asset => {
+        // Create container for widget
+        const chartWrapper = document.createElement('div');
+        chartWrapper.className = 'chart-container';
+        chartWrapper.id = asset.id;
+        container.appendChild(chartWrapper);
+        
+        // Inject script
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = 'https://s3.tradingview.com/tv.js';
+        script.onload = () => {
+            new TradingView.widget({
+                "autosize": true,
+                "symbol": asset.symbol,
+                "interval": "D",
+                "timezone": "Asia/Bangkok",
+                "theme": "dark",
+                "style": "3", // Area chart
+                "locale": "th_TH",
+                "enable_publishing": false,
+                "hide_top_toolbar": true,
+                "hide_legend": false,
+                "save_image": false,
+                "container_id": asset.id,
+                "backgroundColor": "rgba(17, 22, 34, 1)",
+                "gridColor": "rgba(42, 46, 57, 0.5)"
+            });
+        };
+        document.body.appendChild(script);
+    });
 }
 
 function renderSentimentBars(sentiment) {

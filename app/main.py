@@ -130,7 +130,7 @@ app.add_middleware(
 # --- APIs ---
 
 @app.get("/api/stats")
-def get_stats(db: Session = Depends(get_db)):
+def get_stats(timeframe: str = "48h", db: Session = Depends(get_db)):
     """Retrieves count statistics for the Dashboard."""
     total_news = db.query(NewsItem).count()
     important_news = db.query(NewsItem).filter(NewsItem.is_important == True).count()
@@ -139,13 +139,31 @@ def get_stats(db: Session = Depends(get_db)):
     telegram_sent = db.query(NewsItem).filter(NewsItem.telegram_sent == True).count()
     active_feeds = db.query(FeedConfig).filter(FeedConfig.active == True).count()
     
-    # Calculate asset sentiment metrics for the last 48 hours
-    cutoff = datetime.utcnow() - timedelta(hours=48)
-    analyzed_items = db.query(NewsItem).filter(
+    # Calculate asset sentiment metrics based on timeframe
+    now_utc = datetime.utcnow()
+    now_thai = now_utc + timedelta(hours=7)
+    thai_midnight_utc = now_thai.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(hours=7)
+    
+    end_time = None
+    if timeframe == "today":
+        start_time = thai_midnight_utc
+    elif timeframe == "yesterday":
+        start_time = thai_midnight_utc - timedelta(days=1)
+        end_time = thai_midnight_utc
+    elif timeframe == "7d":
+        start_time = now_utc - timedelta(days=7)
+    else: # default 48h
+        start_time = now_utc - timedelta(hours=48)
+
+    query = db.query(NewsItem).filter(
         NewsItem.is_important == True, 
         NewsItem.ai_analysis != None,
-        NewsItem.published_at >= cutoff
-    ).all()
+        NewsItem.published_at >= start_time
+    )
+    if end_time:
+        query = query.filter(NewsItem.published_at < end_time)
+        
+    analyzed_items = query.all()
     
     sentiment = {
         "USD": {"pos": 0, "neg": 0, "neu": 0},
