@@ -17,12 +17,16 @@ document.addEventListener('DOMContentLoaded', () => {
     initTradingViewCharts();
     initAIProviderUI();
     
-    // Initial data fetch
-    loadDashboardData();
-    
-    // Timeframe selector event
+    // Timeframe selector event with visual feedback
     const tfSelect = document.getElementById('sentiment-timeframe');
-    if(tfSelect) tfSelect.addEventListener('change', loadStats);
+    if(tfSelect) {
+        tfSelect.addEventListener('change', async () => {
+            const sentimentCard = document.querySelector('.sentiment-bars');
+            if (sentimentCard) sentimentCard.style.opacity = '0.4';
+            await loadStats();
+            if (sentimentCard) sentimentCard.style.opacity = '1';
+        });
+    }
     
     // Poll data every 7 seconds to keep dashboard alive
     setInterval(() => {
@@ -60,9 +64,19 @@ function initTabs() {
             document.getElementById(`tab-${tab}`).classList.add('active');
             
             currentTab = tab;
+            window.location.hash = tab;
             handleTabChange(tab);
         });
     });
+
+    // Check hash on load
+    const hash = window.location.hash.substring(1);
+    const initialTab = document.querySelector(`.nav-item[data-tab="${hash}"]`);
+    if (initialTab) {
+        initialTab.click();
+    } else {
+        handleTabChange('dashboard');
+    }
 }
 
 function handleTabChange(tab) {
@@ -145,17 +159,24 @@ function initTradingViewCharts() {
     container.innerHTML = '';
     
     assets.forEach(asset => {
-        // Create container for widget
         const chartWrapper = document.createElement('div');
         chartWrapper.className = 'chart-container';
         chartWrapper.id = asset.id;
         container.appendChild(chartWrapper);
-        
-        // Inject script
+    });
+
+    if (window.TradingView) {
+        initWidgets();
+    } else {
         const script = document.createElement('script');
         script.type = 'text/javascript';
         script.src = 'https://s3.tradingview.com/tv.js';
-        script.onload = () => {
+        script.onload = initWidgets;
+        document.body.appendChild(script);
+    }
+
+    function initWidgets() {
+        assets.forEach(asset => {
             new TradingView.widget({
                 "autosize": true,
                 "symbol": asset.symbol,
@@ -172,9 +193,8 @@ function initTradingViewCharts() {
                 "backgroundColor": "rgba(17, 22, 34, 1)",
                 "gridColor": "rgba(42, 46, 57, 0.5)"
             });
-        };
-        document.body.appendChild(script);
-    });
+        });
+    }
 }
 
 function renderSentimentBars(sentiment) {
