@@ -188,6 +188,7 @@ function initTradingViewCharts() {
                 "enable_publishing": false,
                 "hide_top_toolbar": true,
                 "hide_legend": false,
+                "hide_volume": true,
                 "save_image": false,
                 "container_id": asset.id,
                 "backgroundColor": "rgba(17, 22, 34, 1)",
